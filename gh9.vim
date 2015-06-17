@@ -15,13 +15,6 @@ let g:loaded_gh9 = 1
 
 
 " Interfaces {{{1
-
-let g:gh9_create_shallow_clone= get(g:, 'gh9_create_shallow_clone', 1)
-
-command! -complete=customlist,s:import_complete -nargs=* -bang GhqInstall
-      \ call s:cmd_import(<bang>0, <f-args>)
-command! -complete=customlist,s:update_complete -nargs=* GhqUpdate
-      \ call s:cmd_import(1, <f-args>)
 command! -nargs=0 GhqRepos call s:cmd_dump()
 command! -nargs=0 Helptags  call s:cmd_helptags()
 command! -nargs=0 GhqMessages  echo join(s:log, "\n")
@@ -53,8 +46,8 @@ function! gh9#tap(bundle)
   return 0
 endfunction
 
-function! gh9#repos()
-  return deepcopy(s:repos)
+function! gh9#repos(...)
+  return deepcopy(a:0 > 0 ? s:repos[a:1] : s:repos)
 endfunction
 
 " Internals {{{1
@@ -132,24 +125,6 @@ function! s:cmd_apply(config) "{{{
   augroup END
 endfunction "}}}
 
-function! s:cmd_import(update, ...) "{{{
-  let list = a:0 > 0 ? copy(a:000) : filter(keys(s:repos), '!isdirectory(v:val)')
-  let more = &more
-  try
-    set nomore
-    if a:update
-      call filter(list, '!empty(s:get_path(v:val))')
-    endif
-    call filter(list, '!get(s:repos[v:val], "pinned", 0)')
-    echohl Title | echo 'ghq import:' | echohl NONE
-    call s:invoke_ghq_import(copy(list))
-    echohl Title | echo 'git submodule update:' | echohl NONE
-    call s:update_submodules(map(copy(list), 's:get_path(v:val)'))
-  finally
-    let &more = more
-  endtry
-endfunction "}}}
-
 function! s:cmd_helptags() "{{{
   let dirs = filter(map(keys(s:repos), 'expand(s:get_path(v:val) . "/doc")'), 'isdirectory(v:val)')
   echohl Title | echo 'helptags:' | echohl NONE
@@ -180,14 +155,6 @@ function! s:cmd_help(term)
 endfunction
 
 " Completion {{{2
-function! s:import_complete(arglead, cmdline, cursorpos) "{{{
-  return filter(keys(s:repos), 'stridx(v:val, a:arglead) > -1 && !isdirectory(v:val)')
-endfunction "}}}
-
-function! s:update_complete(arglead, cmdline, cursorpos) "{{{
-  return filter(keys(s:repos), 'stridx(v:val, a:arglead) > -1 && !isdirectory(v:val) && !empty(s:get_path(v:val))')
-endfunction "}}}
-
 function! s:help_complete(arglead, cmdline, cursorpos) "{{{
   let tags = &l:tags
   try
@@ -198,34 +165,6 @@ function! s:help_complete(arglead, cmdline, cursorpos) "{{{
     return map(taglist(empty(a:arglead)? '.' : a:arglead), 'v:val.name')
   finally
     let &l:tags = tags
-  endtry
-endfunction "}}}
-
-" Invoking {{{2
-function! s:invoke_ghq_import(dirs) "{{{
-  for dir in a:dirs
-    let cmd = printf('ghq get -u %s %s'
-          \ , g:gh9_create_shallow_clone ? '--shallow' : '', dir)
-    for line in split(iconv(system(cmd), &termencoding, &encoding), "\n")
-      echomsg line
-    endfor
-  endfor
-endfunction "}}}
-
-function! s:update_submodules(dirs) "{{{
-  let cwd = getcwd()
-  try
-    for dir in a:dirs
-      if !filereadable(expand(dir . '/.gitmodules' ))
-        continue
-      endif
-      lcd `=dir`
-      for line in split(iconv(system('git submodule update --init'), &termencoding, &encoding), "\n")
-        echomsg line
-      endfor
-    endfor
-  finally
-    lcd `=cwd`
   endtry
 endfunction "}}}
 
