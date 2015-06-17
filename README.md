@@ -103,15 +103,15 @@ vim -e -s -S ~/.vimrc +GhqReps +qall! | ghq import -u --shallow
 vim のオプションが複雑なので、バッチファイルを用意しています。
 
 ```
-subcommand\gh9.bat | ghq import -u --shallow (windows)
-subcommand\gh9.sh | ghq import -u --shallow (linux)
+macros\gh9.bat | ghq import -u --shallow (windows)
+macros\gh9.sh | ghq import -u --shallow (linux)
 ```
 
 ghq の subcommand を利用する場合、`.gitconfig` に以下のエントリを追加してください。
 
 ```
 [ghq "import"]
-	gh9 = /path/to/vim-gh9/subcommand/gh9.sh
+	gh9 = /path/to/vim-gh9/macros/gh9.sh
 ```
 (※ windows の場合、環境変数`%PATH%`に`sh.exe`があるパスを追加してください)
 
