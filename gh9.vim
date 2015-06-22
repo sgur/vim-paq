@@ -85,29 +85,29 @@ function! s:cmd_apply(config) "{{{
   let dirs = []
   let ftdetects = []
   let s:_plugins = []
-  for repo in items(s:repos)
-    let name = s:get_path(repo[0])
-    if empty(name) || !get(repo[1], 'enabled', 1)
+  for [name, params] in items(s:repos)
+    let path = s:get_path(name)
+    if empty(path) || !get(params, 'enabled', 1)
       continue
     endif
-    if has_key(repo[1], 'rtp')
-      let name = join([name, repo[1].rtp], '/')
+    if has_key(params, 'rtp')
+      let path = join([path, params.rtp], '/')
     endif
-    let preload = has_key(repo[1], 'preload')
-          \ ? repo[1].preload
+    let preload = has_key(params, 'preload')
+          \ ? params.preload
           \ : has_key(a:config, 'preload') ? a:config.preload : 0
-    if has_key(repo[1], 'filetype')
-      let ftdetects += s:globpath(name, 'ftdetect/**/*.vim')
+    if has_key(params, 'filetype')
+      let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
       if preload
-        let s:_plugins += s:get_preloads(name)
+        let s:_plugins += s:get_preloads(path)
       endif
-    elseif has_key(repo[1], 'autoload')
+    elseif has_key(params, 'autoload')
       if preload
-        let s:_plugins += s:get_preloads(name)
+        let s:_plugins += s:get_preloads(path)
       endif
     else
-      let dirs += [name]
-      let repo[1].__loaded = 1
+      let dirs += [path]
+      let params.__loaded = 1
     endif
   endfor
   call s:set_runtimepath(dirs)
@@ -181,13 +181,12 @@ endfunction "}}}
 
 function! s:on_funcundefined(funcname) "{{{
   let dirs = []
-  for repo in items(s:repos)
-    let [name, params] = [repo[0], repo[1]]
+  for [name, params] in items(s:repos)
     if !get(params, 'enabled', 1) || get(params, '__loaded', 0) || !has_key(params, 'autoload')
       continue
     endif
     if stridx(a:funcname , params.autoload) > -1
-      call s:log(printf('[DEBUG] on autoload function %s (%s) -> %s', params.autoload, a:funcname, name))
+      call s:log(printf('[DEBUG] loading %s on autoload[%s] (%s)', name, params.autoload, a:funcname))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -200,13 +199,12 @@ endfunction "}}}
 
 function! s:on_filetype(filetype) "{{{
   let dirs = []
-  for repo in items(s:repos)
-    let [name, params] = [repo[0], repo[1]]
+  for [name, params] in items(s:repos)
     if !get(params, 'enabled', 1) || get(params, '__loaded', 0) || !has_key(params, 'filetype')
       continue
     endif
     if s:included(params.filetype, a:filetype)
-      call s:log(printf('[DEBUG] on filetype %s -> %s', a:filetype, name))
+      call s:log(printf('[DEBUG] loading %s on filetype[%s]', name, a:filetype))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -252,10 +250,10 @@ endfunction "}}}
 
 function! s:validate_repos() "{{{
   let validation_keys = ['filetype', 'enabled', 'immediately', 'autoload', 'rtp', 'pinned', '__path', '__loaded']
-  for repo in items(s:repos)
-    for key in keys(repo[1])
+  for [name, params] in items(s:repos)
+    for key in keys(params)
       if index(validation_keys, key) == -1
-        echohl ErrorMsg | echomsg 'Invalid Key:' repo[0] key | echohl NONE
+        echohl ErrorMsg | echomsg 'Invalid Key:' name key | echohl NONE
       endif
     endfor
   endfor
@@ -324,7 +322,7 @@ endfunction
 " 1}}}
 
 let s:repos = get(s:, 'repos', {})
-let s:log = []
+let s:log = get(s:, 'log', [])
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
