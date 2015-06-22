@@ -123,6 +123,15 @@ function! s:cmd_apply(config) "{{{
       autocmd VimEnter *  call s:on_vimenter()
     endif
   augroup END
+
+  if has('vim_starting')
+    return
+  endif
+
+  for rtp in split(&runtimepath, ',')
+    call s:get_preloads(rtp)
+  endfor
+  call s:on_vimenter()
 endfunction "}}}
 
 function! s:cmd_helptags() "{{{
