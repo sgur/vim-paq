@@ -1,9 +1,9 @@
 scriptencoding utf-8
 
-" if exists('g:loaded_gh9_util') && g:loaded_gh9_util
-"   finish
-" endif
-" let g:loaded_gh9_util = 1
+if exists('g:loaded_gh9_util') && g:loaded_gh9_util
+  finish
+endif
+let g:loaded_gh9_util = 1
 
 " Interfaces {{{1
 let g:gh9_create_shallow_clone= get(g:, 'gh9_create_shallow_clone', 1)

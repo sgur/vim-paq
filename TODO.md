@@ -3,12 +3,12 @@
 - [ ] switch set of runtimepaths for each filetypes on FileType event
   - [ ] general rtp + filetype-specifiec rtp
 - [ ] help file
-- [ ] lazy loading
-  - [x] autoload event trigger (FuncUndefined event)
-  - [ ] command event trigger (pseudo command)
 - [ ] Move extra-features (autoload, filetype, ...) to separate autoload/../{feature}.vim
 - [ ] Better interface: Only Ghq and GhqBundle (not begin() and end())
   - [ ] Support both Ghq command and gh9#bundle(dict) (configure at once)
+- [x] lazy loading
+  - [x] autoload event trigger (FuncUndefined event)
+  - [x] command event trigger (pseudo command)
 - [x] Insturctions
 - [x] 'pinned' flag : skip ghq update
 - [x] 'rtp' flag : add sub-directory to rtp

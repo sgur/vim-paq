@@ -1,4 +1,4 @@
-vim-ghqp
+vim-gh9
 ========
 
 Ghq ベースの Vim プラグインローダーです。
@@ -28,7 +28,7 @@ source /path/to/gh9.vim
 call gh9#begin()
 
 " Enable some convenient commands
-Ghq 'sgur/vim-ghqp
+Ghq 'sgur/vim-gh9'
 " Or
 " Use only basic commands
 Ghq 'sgur/vim-gh9', {'enabled': 0}
