@@ -86,34 +86,31 @@ function! s:cmd_apply(config) "{{{
   let ftdetects = []
   let s:_plugins = []
   for [name, params] in items(s:repos)
-    let path = s:get_path(name)
+    let path = has_key(params, 'rtp') ? join([path, params.rtp], '/') : s:get_path(name)
     if empty(path) || !get(params, 'enabled', 1)
       continue
     endif
-    if has_key(params, 'rtp')
-      let path = join([path, params.rtp], '/')
-    endif
-    let preload = has_key(params, 'preload')
-          \ ? params.preload
-          \ : has_key(a:config, 'preload') ? a:config.preload : 0
+
     if has_key(params, 'filetype')
-      let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
-      if preload
-        let s:_plugins += s:get_preloads(path)
-      endif
-    elseif has_key(params, 'autoload')
-      if preload
-        let s:_plugins += s:get_preloads(path)
-      endif
-    else
+      call s:source_scripts(s:globpath(path, 'ftdetect/**/*.vim'))
+    endif
+
+    let preload = has_key(params, 'preload') ? params.preload : get(a:config, 'preload', 0)
+    let triggered = 0
+    if has_key(params, 'filetype') || has_key(params, 'autoload')
+      let s:_plugins += preload ? s:get_preloads(path) : []
+      let triggered = 1
+    endif
+    if has_key(params, 'command')
+      call s:define_pseudo_commands(params.command, name)
+      let triggered = 1
+    endif
+    if !triggered
       let dirs += [path]
       let params.__loaded = 1
     endif
   endfor
   call s:set_runtimepath(dirs)
-  for ftdetect in ftdetects
-    source `=ftdetect`
-  endfor
 
   augroup plugin_gh9
     autocmd!
@@ -127,11 +124,9 @@ function! s:cmd_apply(config) "{{{
   if has('vim_starting')
     return
   endif
-
-  for rtp in split(&runtimepath, ',')
-    call s:get_preloads(rtp)
+  for path in split(&runtimepath, ',')
+    call s:source_scripts(s:get_preloads(path))
   endfor
-  call s:on_vimenter()
 endfunction "}}}
 
 function! s:cmd_helptags() "{{{
@@ -183,9 +178,7 @@ function! s:on_vimenter() "{{{
   if !exists('s:_plugins')
     return
   endif
-  for path in s:_plugins
-    source `=path`
-  endfor
+  call s:source_scripts(s:_plugins)
 endfunction "}}}
 
 function! s:on_funcundefined(funcname) "{{{
@@ -200,10 +193,7 @@ function! s:on_funcundefined(funcname) "{{{
       let params.__loaded = 1
     endif
   endfor
-  let &runtimepath = s:rtp_generate(dirs)
-  for plugin_path in s:globpath(join(dirs,','), 'plugin/**/*.vim') + s:globpath(join(dirs,','), 'after/**/*.vim')
-    execute 'source' plugin_path
-  endfor
+  call s:inject_runtimepath(dirs)
 endfunction "}}}
 
 function! s:on_filetype(filetype) "{{{
@@ -269,6 +259,19 @@ function! s:validate_repos() "{{{
 endfunction "}}}
 
 " RTP {{{2
+function! s:source_scripts(paths)
+  for path in a:paths
+    source `=path`
+  endfor
+endfunction
+
+function! s:inject_runtimepath(dirs)
+  let &runtimepath = s:rtp_generate(a:dirs)
+  for plugin_path in s:globpath(join(a:dirs,','), 'plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'after/**/*.vim')
+    execute 'source' plugin_path
+  endfor
+endfunction
+
 function! s:set_runtimepath(dirs) "{{{
   if !exists('s:rtp')
     let s:rtp = &runtimepath
@@ -291,11 +294,33 @@ endfunction "}}}
 
 function! s:get_preloads(name)
   let _ = []
-  " for plugin_path in s:globpath(a:name, 'plugin/**/*.vim') + s:globpath(name, 'after/**/*.vim')
   for plugin_path in s:globpath(a:name, 'plugin/**/*.vim')
     let _ += [plugin_path]
   endfor
   return _
+endfunction
+
+" Command {{{2
+function! s:define_pseudo_commands(commands, name)
+  let commands = type(a:commands) == type([]) ? a:commands : [a:commands]
+  for command in commands
+    if type(command) != type({}) | return | endif
+    let cmd = command.name
+    call remove(command, 'name')
+    if has_key(command, 'bang')
+      let bang = command.bang
+      call remove(command, 'bang')
+    endif
+    let attr = map(command, 'printf("-%s=%s", v:key, v:val)')
+    execute 'command!' join(values(attr), ' ') (exists('bang') ? '-bang' : '') cmd printf('call s:pseudo_command(%s, %s, %s, %s)', string(a:name), string(cmd), exists('bang') ? '"!"' : '""', "<q-args>")
+  endfor
+endfunction
+
+function! s:pseudo_command(name, cmd, bang, args)
+  execute 'delcommand' a:cmd
+  call s:log(printf('[DEBUG] loading %s on command[%s]', a:name, a:cmd))
+  call s:inject_runtimepath([s:get_path(a:name)])
+  execute a:cmd . a:bang a:args
 endfunction
 
 " Misc {{{2
@@ -327,7 +352,6 @@ endfunction "}}}
 function! s:log(msg)
   let s:log += [join([strftime('%c'), a:msg], '| ')]
 endfunction
-
 " 1}}}
 
 let s:repos = get(s:, 'repos', {})
