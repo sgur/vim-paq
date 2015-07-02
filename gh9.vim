@@ -17,7 +17,7 @@ let g:loaded_gh9 = 1
 " Interfaces {{{1
 command! -nargs=0 GhqRepos call s:cmd_dump()
 command! -nargs=0 Helptags  call s:cmd_helptags()
-command! -nargs=0 GhqMessages  echo join(s:log, "\n")
+command! -nargs=0 GhqMessages  call s:message('s:info')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
 
@@ -35,7 +35,12 @@ endfunction
 
 function! gh9#tap(bundle)
   if !has_key(s:repos, a:bundle)
-    throw 'gh9#tap(): no repository (' . a:bundle . ')'
+    let msg = printf('[WARNING] no repository found on gh9#tap("%s")', a:bundle)
+    if has('vim_starting')
+      call s:log(msg)
+    else
+      echohl WarningMsg | echomsg msg | echohl NONE
+    endif
     return 0
   endif
   if !&loadplugins | return 0 | endif
@@ -179,6 +184,9 @@ function! s:on_vimenter() "{{{
     return
   endif
   call s:source_scripts(s:_plugins)
+  if !empty(s:log)
+    call s:message('s:warning')
+  endif
 endfunction "}}}
 
 function! s:on_funcundefined(funcname) "{{{
@@ -187,8 +195,8 @@ function! s:on_funcundefined(funcname) "{{{
     if !get(params, 'enabled', 1) || get(params, '__loaded', 0) || !has_key(params, 'autoload')
       continue
     endif
-    if stridx(a:funcname , params.autoload) > -1
-      call s:log(printf('[DEBUG] loading %s on autoload[%s] (%s)', name, params.autoload, a:funcname))
+    if stridx(a:funcname , params.autoload) == 0
+      call s:log(printf('[INFO] loading %s on autoload[%s] (%s)', name, params.autoload, a:funcname))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -203,7 +211,7 @@ function! s:on_filetype(filetype) "{{{
       continue
     endif
     if s:included(params.filetype, a:filetype)
-      call s:log(printf('[DEBUG] loading %s on filetype[%s]', name, a:filetype))
+      call s:log(printf('[INFO] loading %s on filetype[%s]', name, a:filetype))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -318,7 +326,7 @@ endfunction
 
 function! s:pseudo_command(name, cmd, bang, args)
   execute 'delcommand' a:cmd
-  call s:log(printf('[DEBUG] loading %s on command[%s]', a:name, a:cmd))
+  call s:log(printf('[INFO] loading %s on command[%s]', a:name, a:cmd))
   call s:inject_runtimepath([s:get_path(a:name)])
   execute a:cmd . a:bang a:args
 endfunction
@@ -351,6 +359,20 @@ endfunction "}}}
 
 function! s:log(msg)
   let s:log += [join([strftime('%c'), a:msg], '| ')]
+endfunction
+
+function! s:message(funcname)
+  for l in s:log
+    call call(a:funcname, [l])
+  endfor
+endfunction
+
+function! s:info(msg)
+  execute 'echo' string(a:msg)
+endfunction
+
+function! s:warning(msg)
+  echohl WarningMsg | execute 'echomsg' string(split(a:msg, '| ')[1]) | echohl NONE
 endfunction
 " 1}}}
 
