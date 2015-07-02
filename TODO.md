@@ -1,5 +1,6 @@
 # TODO
 
+- [ ] 'pluginonly' option
 - [ ] switch set of runtimepaths for each filetypes on FileType event
   - [ ] general rtp + filetype-specifiec rtp
 - [ ] help file
