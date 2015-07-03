@@ -17,7 +17,7 @@ let g:loaded_gh9 = 1
 " Interfaces {{{1
 command! -nargs=0 GhqRepos call s:cmd_dump()
 command! -nargs=0 Helptags  call s:cmd_helptags()
-command! -nargs=0 GhqMessages  call s:message('s:info')
+command! -nargs=0 GhqMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
 
@@ -35,9 +35,9 @@ endfunction
 
 function! gh9#tap(bundle)
   if !has_key(s:repos, a:bundle)
-    let msg = printf('[WARNING] no repository found on gh9#tap("%s")', a:bundle)
+    let msg = printf('no repository found on gh9#tap("%s")', a:bundle)
     if has('vim_starting')
-      call s:log(msg)
+      call s:log(s:WARNING, msg)
     else
       echohl WarningMsg | echomsg msg | echohl NONE
     endif
@@ -185,7 +185,7 @@ function! s:on_vimenter() "{{{
   endif
   call s:source_scripts(s:_plugins)
   if !empty(s:log)
-    call s:message('s:warning')
+    call s:message(s:WARNING, 's:echomsg_warning')
   endif
 endfunction "}}}
 
@@ -196,7 +196,7 @@ function! s:on_funcundefined(funcname) "{{{
       continue
     endif
     if stridx(a:funcname , params.autoload) == 0
-      call s:log(printf('[INFO] loading %s on autoload[%s] (%s)', name, params.autoload, a:funcname))
+      call s:log(s:INFO, printf('loading %s on autoload[%s] (%s)', name, params.autoload, a:funcname))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -211,7 +211,7 @@ function! s:on_filetype(filetype) "{{{
       continue
     endif
     if s:included(params.filetype, a:filetype)
-      call s:log(printf('[INFO] loading %s on filetype[%s]', name, a:filetype))
+      call s:log(s:INFO, printf('loading %s on filetype[%s]', name, a:filetype))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -326,7 +326,7 @@ endfunction
 
 function! s:pseudo_command(name, cmd, bang, args)
   execute 'delcommand' a:cmd
-  call s:log(printf('[INFO] loading %s on command[%s]', a:name, a:cmd))
+  call s:log(s:INFO, printf('loading %s on command[%s]', a:name, a:cmd))
   call s:inject_runtimepath([s:get_path(a:name)])
   execute a:cmd . a:bang a:args
 endfunction
@@ -357,22 +357,30 @@ function! s:included(values, name) "{{{
   return len(filter(copy(values), 'a:name =~# v:val')) > 0
 endfunction "}}}
 
-function! s:log(msg)
-  let s:log += [join([strftime('%c'), a:msg], '| ')]
+function! s:log(level, msg)
+  let s:log += [[a:level, localtime(), a:msg]]
 endfunction
 
-function! s:message(funcname)
-  for l in s:log
-    call call(a:funcname, [l])
+function! s:message(threshold, funcname)
+  for [level, time, msg] in s:log
+    if a:threshold >= level
+      call call(a:funcname, [time, printf('[%s] %s', s:lvl2str(level), msg)])
+    endif
   endfor
 endfunction
 
-function! s:info(msg)
-  execute 'echo' string(a:msg)
+function! s:echo(time, msg)
+  execute 'echo' string(printf('%s| %s', strftime('%c', a:time), a:msg))
 endfunction
 
-function! s:warning(msg)
-  echohl WarningMsg | execute 'echomsg' string(split(a:msg, '| ')[1]) | echohl NONE
+function! s:echomsg_warning(time, msg)
+  echohl WarningMsg | execute 'echomsg' string(a:msg) | echohl NONE
+endfunction
+
+let s:levels = ['WARNING', 'INFO']
+let [s:WARNING, s:INFO] = range(len(s:levels))
+function! s:lvl2str(level)
+  return s:levels[a:level]
 endfunction
 " 1}}}
 
