@@ -1,1 +1,1 @@
-vim -e -s -S ~/.vimrc +GhqRepos +qall!
+vim -e -s -S ~/.vimrc +GhqRepos +qall! || exit 0
