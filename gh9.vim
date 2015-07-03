@@ -33,6 +33,23 @@ function! gh9#end(...)
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction
 
+function! gh9#load(dict, ...)
+  command! -buffer -nargs=+ Ghq  call s:cmd_nop()
+  command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_nop()
+  call s:cmd_init(a:000)
+  let s:repos = a:dict
+endfunction
+
+function! gh9#dump()
+  let _ = deepcopy(s:repos)
+  for key in keys(_)
+    if has_key(_[key], '__loaded')
+      call remove(_[key], '__loaded')
+    endif
+  endfor
+  return string(_)
+endfunction
+
 function! gh9#tap(bundle)
   if !has_key(s:repos, a:bundle)
     let msg = printf('no repository found on gh9#tap("%s")', a:bundle)
@@ -162,6 +179,9 @@ function! s:cmd_help(term)
   finally
     let &rtp = rtp
   endtry
+endfunction
+
+function! s:cmd_nop()
 endfunction
 
 " Completion {{{2
@@ -315,12 +335,10 @@ function! s:define_pseudo_commands(commands, name)
   for command in commands
     if type(command) != type({}) | return | endif
     let cmd = command.name
-    call remove(command, 'name')
     if has_key(command, 'bang')
       let bang = command.bang
-      call remove(command, 'bang')
     endif
-    let attr = map(command, 'printf("-%s=%s", v:key, v:val)')
+    let attr = map(filter(copy(command), 'v:key isnot# "bang" && v:key isnot# "name"'), 'printf("-%s=%s", v:key, v:val)')
     execute 'command!' join(values(attr), ' ') (exists('bang') ? '-bang' : '') cmd printf('call s:pseudo_command(%s, %s, %s, %s)', string(a:name), string(cmd), exists('bang') ? '"!"' : '""', "<q-args>")
   endfor
 endfunction
