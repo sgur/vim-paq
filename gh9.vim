@@ -91,6 +91,7 @@ function! s:cmd_apply(config) "{{{
   let ftdetects = []
   let s:_plugins = []
   for [name, params] in items(s:repos)
+    call extend(params, a:config, 'keep')
     let path = has_key(params, 'rtp') ? join([path, params.rtp], '/') : s:get_path(name)
     if empty(path) || !get(params, 'enabled', 1)
       continue
@@ -100,7 +101,7 @@ function! s:cmd_apply(config) "{{{
       call s:source_scripts(s:globpath(path, 'ftdetect/**/*.vim'))
     endif
 
-    let preload = has_key(params, 'preload') ? params.preload : get(a:config, 'preload', 0)
+    let preload = has_key(params, 'preload') ? params.preload : 0
     let triggered = 0
     if has_key(params, 'filetype') || has_key(params, 'autoload')
       let s:_plugins += preload ? s:get_preloads(path) : []
