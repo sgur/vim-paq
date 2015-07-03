@@ -1,5 +1,8 @@
 # TODO
 
+- [ ] `g:gh9_advanced_features` option:
+  - disabled(default): only `filetype`, `enabled`
+  - enabled: `install`, `help`, `autoload`, `preload`, `serialize`
 - [ ] 'pluginonly' option
 - [ ] switch set of runtimepaths for each filetypes on FileType event
   - [ ] general rtp + filetype-specifiec rtp
