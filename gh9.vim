@@ -367,10 +367,6 @@ function! s:to_list(value) "{{{
   endif
 endfunction "}}}
 
-function! s:globpath(path, expr) "{{{
-  return has('patch-7.4.279') ? globpath(a:path, a:expr, 1, 1) : split(globpath(a:path, a:expr, 1))
-endfunction "}}}
-
 function! s:included(values, name) "{{{
   let values = type(a:values) == type('') ? [a:values] : a:values
   return len(filter(copy(values), 'a:name =~# v:val')) > 0
