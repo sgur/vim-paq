@@ -20,6 +20,7 @@ command! -nargs=0 Helptags  call s:cmd_helptags()
 command! -nargs=0 GhqMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
+nnoremap <silent> K  :<C-u>call <SID>map_tryhelp("<C-r><C-w>")<CR>
 
 function! gh9#begin(...)
   for a in a:000
@@ -201,13 +202,22 @@ function! s:cmd_help(term)
   try
     let &rtp = join(map(values(s:repos), 'v:val.__path'),',')
     execute 'help' a:term
-    nnoremap <silent> <buffer> K :<C-u>Help <C-r><C-w><CR>
+  catch /^Vim\%((\a\+)\)\=:E149/
+    echohl WarningMsg | echomsg 'gh9: Sorry, no help for ' . a:term | echohl NONE
   finally
     let &rtp = rtp
   endtry
 endfunction
 
 function! s:cmd_nop()
+endfunction
+
+function! s:map_tryhelp(word)
+  try
+    execute 'help' a:word
+  catch /^Vim\%((\a\+)\)\=:E149/
+    execute 'Help' a:word
+  endtry
 endfunction
 
 " Completion {{{2
