@@ -22,9 +22,26 @@ command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
 
 function! gh9#begin(...)
-  command! -buffer -nargs=+ Ghq  call s:cmd_bundle(<args>)
-  command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_globlocal(<args>)
-  call s:cmd_init(a:000)
+  for a in a:000
+    if type(a) == type('')
+      let dir = a
+    elseif type(a) == type({})
+      let dump = a
+    endif
+  endfor
+  if exists('dump') && s:validate_dump(dump)
+    command! -buffer -nargs=+ Ghq  call s:cmd_nop()
+    command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_nop()
+    let s:repos = dump.repos
+    let s:_dirs = dump.dirs
+    let s:_plugins = dump.plugins
+    let s:_ftdetects = dump.ftdetects
+    let s:_commands = dump.commands
+  else
+    command! -buffer -nargs=+ Ghq  call s:cmd_bundle(<args>)
+    command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_globlocal(<args>)
+  endif
+  call s:cmd_init(exists('dir') ? dir : [])
 endfunction
 
 function! gh9#end(...)
@@ -33,21 +50,22 @@ function! gh9#end(...)
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction
 
-function! gh9#load(dict, ...)
-  command! -buffer -nargs=+ Ghq  call s:cmd_nop()
-  command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_nop()
-  call s:cmd_init(a:000)
-  let s:repos = a:dict
+function! s:validate_dump(dict)
+  return has_key(a:dict, 'repos') && type(a:dict.repos) == type({})
+        \ && has_key(a:dict, 'dirs') && type(a:dict.dirs) == type([])
+        \ && has_key(a:dict, 'plugins') && type(a:dict.plugins) == type([])
+        \ && has_key(a:dict, 'ftdetects') && type(a:dict.ftdetects) == type([])
+        \ && has_key(a:dict, 'commands') && type(a:dict.commands) == type([])
 endfunction
 
 function! gh9#dump()
-  let _ = deepcopy(s:repos)
-  for key in keys(_)
-    if has_key(_[key], '__loaded')
-      call remove(_[key], '__loaded')
+  let repos = deepcopy(s:repos)
+  for key in keys(repos)
+    if has_key(repos[key], '__loaded')
+      call remove(repos[key], '__loaded')
     endif
   endfor
-  return string(_)
+  return string({'repos': repos, 'dirs': s:_dirs, 'plugins': s:_plugins, 'ftdetects': s:_ftdetects, 'commands': s:_commands})
 endfunction
 
 function! gh9#tap(bundle)
@@ -104,36 +122,44 @@ endfunction "}}}
 function! s:cmd_apply(config) "{{{
   if !&loadplugins | return | endif
 
-  let dirs = []
-  let ftdetects = []
-  let s:_plugins = []
-  for [name, params] in items(s:repos)
-    call extend(params, a:config, 'keep')
-    let path = has_key(params, 'rtp') ? join([path, params.rtp], '/') : s:get_path(name)
-    if empty(path) || !get(params, 'enabled', 1)
-      continue
-    endif
+  if !exists('s:_dirs')
+    let s:_dirs = []
+    let s:_ftdetects = []
+    let s:_plugins = []
+    let s:_commands = []
+    for [name, params] in items(s:repos)
+      call extend(params, a:config, 'keep')
+      let path = has_key(params, 'rtp') ? join([path, params.rtp], '/') : s:get_path(name)
+      if empty(path) || !get(params, 'enabled', 1)
+        continue
+      endif
 
-    if has_key(params, 'filetype')
-      call s:source_scripts(s:globpath(path, 'ftdetect/**/*.vim'))
-    endif
+      if has_key(params, 'filetype')
+        let s:_ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
+      endif
 
-    let preload = has_key(params, 'preload') ? params.preload : 0
-    let triggered = 0
-    if has_key(params, 'filetype') || has_key(params, 'autoload')
-      let s:_plugins += preload ? s:get_preloads(path) : []
-      let triggered = 1
-    endif
-    if has_key(params, 'command')
-      call s:define_pseudo_commands(params.command, name)
-      let triggered = 1
-    endif
-    if !triggered
-      let dirs += [path]
-      let params.__loaded = 1
-    endif
+      let preload = has_key(params, 'preload') ? params.preload : 0
+      let triggered = 0
+      if has_key(params, 'filetype') || has_key(params, 'autoload')
+        let s:_plugins += preload ? s:get_preloads(path) : []
+        let triggered = 1
+      endif
+      if has_key(params, 'command')
+        let s:_commands += [[params.command, name]]
+        let triggered = 1
+      endif
+      if !triggered
+        let s:_dirs += [path]
+        let params.__loaded = 1
+      endif
+    endfor
+  endif
+  call s:set_runtimepath(s:_dirs)
+  call s:source_scripts(s:_ftdetects)
+  for [cmd, name] in s:_commands
+    call s:define_pseudo_commands(cmd, name)
+    unlet cmd
   endfor
-  call s:set_runtimepath(dirs)
 
   augroup plugin_gh9
     autocmd!
