@@ -22,7 +22,7 @@ command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
 nnoremap <silent> K  :<C-u>call <SID>map_tryhelp("<C-r><C-w>")<CR>
 
-function! gh9#begin(...)
+function! gh9#begin(...) "{{{
   for a in a:000
     if type(a) == type('')
       let dir = a
@@ -43,23 +43,23 @@ function! gh9#begin(...)
     command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_globlocal(<args>)
   endif
   call s:cmd_init(exists('dir') ? dir : [])
-endfunction
+endfunction "}}}
 
-function! gh9#end(...)
+function! gh9#end(...) "{{{
   delcommand Ghq
   delcommand GhqGlob
   call s:cmd_apply(a:0 ? a:1 : {})
-endfunction
+endfunction "}}}
 
-function! s:validate_dump(dict)
+function! s:validate_dump(dict) "{{{
   return has_key(a:dict, 'repos') && type(a:dict.repos) == type({})
         \ && has_key(a:dict, 'dirs') && type(a:dict.dirs) == type([])
         \ && has_key(a:dict, 'plugins') && type(a:dict.plugins) == type([])
         \ && has_key(a:dict, 'ftdetects') && type(a:dict.ftdetects) == type([])
         \ && has_key(a:dict, 'commands') && type(a:dict.commands) == type([])
-endfunction
+endfunction "}}}
 
-function! gh9#dump()
+function! gh9#dump() "{{{
   let repos = deepcopy(s:repos)
   for key in keys(repos)
     if has_key(repos[key], '__loaded')
@@ -67,9 +67,9 @@ function! gh9#dump()
     endif
   endfor
   return string({'repos': repos, 'dirs': s:_dirs, 'plugins': s:_plugins, 'ftdetects': s:_ftdetects, 'commands': s:_commands})
-endfunction
+endfunction "}}}
 
-function! gh9#tap(bundle)
+function! gh9#tap(bundle) "{{{
   if !has_key(s:repos, a:bundle)
     let msg = printf('no repository found on gh9#tap("%s")', a:bundle)
     if has('vim_starting')
@@ -85,11 +85,11 @@ function! gh9#tap(bundle)
     return 1
   endif
   return 0
-endfunction
+endfunction "}}}
 
-function! gh9#repos(...)
+function! gh9#repos(...) "{{{
   return deepcopy(a:0 > 0 ? s:repos[a:1] : s:repos)
-endfunction
+endfunction "}}}
 
 " Internals {{{1
 " Commands {{{2
@@ -197,7 +197,7 @@ function! s:cmd_dump() "{{{
   bdelete
 endfunction "}}}
 
-function! s:cmd_help(term)
+function! s:cmd_help(term) "{{{
   let rtp = &rtp
   try
     let &rtp = join(map(values(s:repos), 'v:val.__path'),',')
@@ -207,18 +207,18 @@ function! s:cmd_help(term)
   finally
     let &rtp = rtp
   endtry
-endfunction
+endfunction "}}}
 
-function! s:cmd_nop()
-endfunction
+function! s:cmd_nop() "{{{
+endfunction "}}}
 
-function! s:map_tryhelp(word)
+function! s:map_tryhelp(word) "{{{
   try
     execute 'help' a:word
   catch /^Vim\%((\a\+)\)\=:E149/
     execute 'Help' a:word
   endtry
-endfunction
+endfunction "}}}
 
 " Completion {{{2
 function! s:help_complete(arglead, cmdline, cursorpos) "{{{
@@ -280,11 +280,11 @@ function! s:on_filetype(filetype) "{{{
 endfunction "}}}
 
 " Repos {{{2
-function! s:find_ghq_root()
+function! s:find_ghq_root() "{{{
   let gitconfig = readfile(expand('~/.gitconfig'))
   let ghq_root = filter(map(gitconfig, 'matchstr(v:val, ''root\s*=\s*\zs.*'')'), 'v:val isnot""')
   return ghq_root[0]
-endfunction
+endfunction "}}}
 
 function! s:get_path(name) " {{{
   let repo = get(s:repos, a:name, {})
@@ -324,18 +324,18 @@ function! s:validate_repos() "{{{
 endfunction "}}}
 
 " RTP {{{2
-function! s:source_scripts(paths)
+function! s:source_scripts(paths) "{{{
   for path in a:paths
     source `=path`
   endfor
-endfunction
+endfunction "}}}
 
-function! s:inject_runtimepath(dirs)
+function! s:inject_runtimepath(dirs) "{{{
   let &runtimepath = s:rtp_generate(a:dirs)
   for plugin_path in s:globpath(join(a:dirs,','), 'plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'after/**/*.vim')
     execute 'source' plugin_path
   endfor
-endfunction
+endfunction "}}}
 
 function! s:set_runtimepath(dirs) "{{{
   if !exists('s:rtp')
@@ -357,34 +357,35 @@ function! s:glob_after(rtp) "{{{
   return s:globpath(a:rtp, 'after')
 endfunction "}}}
 
-function! s:get_preloads(name)
+function! s:get_preloads(name) "{{{
   let _ = []
   for plugin_path in s:globpath(a:name, 'plugin/**/*.vim')
     let _ += [plugin_path]
   endfor
   return _
-endfunction
+endfunction "}}}
 
 " Command {{{2
-function! s:define_pseudo_commands(commands, name)
+function! s:define_pseudo_commands(commands, name) "{{{
   let commands = type(a:commands) == type([]) ? a:commands : [a:commands]
   for command in commands
     if type(command) != type({}) | return | endif
     let cmd = command.name
-    if has_key(command, 'bang')
+    if get(command, 'bang', 0)
       let bang = command.bang
     endif
     let attr = map(filter(copy(command), 'v:key isnot# "bang" && v:key isnot# "name"'), 'printf("-%s=%s", v:key, v:val)')
-    execute 'command!' join(values(attr), ' ') (exists('bang') ? '-bang' : '') cmd printf('call s:pseudo_command(%s, %s, %s, %s)', string(a:name), string(cmd), exists('bang') ? '"!"' : '""', "<q-args>")
+    execute 'command!' join(values(attr), ' ') (exists('bang') ? '-bang' : '') cmd
+          \ printf('call s:pseudo_command(%s, %s, %s, %s)', string(a:name), string(cmd), "'<bang>'", "<q-args>")
   endfor
-endfunction
+endfunction "}}}
 
-function! s:pseudo_command(name, cmd, bang, args)
+function! s:pseudo_command(name, cmd, bang, args) "{{{
   execute 'delcommand' a:cmd
   call s:log(s:INFO, printf('loading %s on command[%s]', a:name, a:cmd))
   call s:inject_runtimepath([s:get_path(a:name)])
   execute a:cmd . a:bang a:args
-endfunction
+endfunction "}}}
 
 " Misc {{{2
 function! s:globpath(path, expr) "{{{
@@ -408,35 +409,37 @@ function! s:included(values, name) "{{{
   return len(filter(copy(values), 'a:name =~# v:val')) > 0
 endfunction "}}}
 
-function! s:log(level, msg)
+function! s:log(level, msg) "{{{
   let s:log += [[a:level, localtime(), a:msg]]
-endfunction
+endfunction "}}}
 
-function! s:message(threshold, funcname)
+function! s:message(threshold, funcname) "{{{
   for [level, time, msg] in s:log
     if a:threshold >= level
       call call(a:funcname, [time, printf('[%s] %s', s:lvl2str(level), msg)])
     endif
   endfor
-endfunction
+endfunction "}}}
 
-function! s:echo(time, msg)
+function! s:echo(time, msg) "{{{
   execute 'echo' string(printf('%s| %s', strftime('%c', a:time), a:msg))
-endfunction
+endfunction "}}}
 
-function! s:echomsg_warning(time, msg)
+function! s:echomsg_warning(time, msg) "{{{
   echohl WarningMsg | execute 'echomsg' string(a:msg) | echohl NONE
-endfunction
+endfunction "}}}
+" 2}}}
 
 let s:levels = ['WARNING', 'INFO']
 let [s:WARNING, s:INFO] = range(len(s:levels))
-function! s:lvl2str(level)
+function! s:lvl2str(level) "{{{
   return s:levels[a:level]
-endfunction
-" 1}}}
+endfunction "}}}
 
 let s:repos = get(s:, 'repos', {})
 let s:log = get(s:, 'log', [])
+" 1}}}
+
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
