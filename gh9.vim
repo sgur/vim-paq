@@ -15,7 +15,7 @@ let g:loaded_gh9 = 1
 
 
 " Interfaces {{{1
-command! -nargs=0 GhqRepos call s:cmd_dump()
+command! -nargs=0 GhqRepos call s:cmd_repo2stdout()
 command! -nargs=0 Helptags  call s:cmd_helptags()
 command! -nargs=0 GhqMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
@@ -101,17 +101,12 @@ function! s:cmd_bundle(bundle, ...) "{{{
   endif
 endfunction "}}}
 
-function! s:cmd_globlocal(...) "{{{
-  if !isdirectory(expand(a:1))
-    echohl WarningMsg | echomsg 'Not found:' a:1 | echohl NONE
+function! s:cmd_globlocal(dir) "{{{
+  if !isdirectory(expand(a:dir))
+    echohl WarningMsg | echomsg 'Not found:' a:dir | echohl NONE
     return
   endif
-  for dir in s:globpath(a:1, '*')
-    if has_key(s:repos, dir) || dir =~# '\~$'
-      continue
-    endif
-    let s:repos[dir] = {}
-  endfor
+  call map(filter(s:globpath(a:dir, '*'), '!s:is_globskip(v:val)'), 'extend(s:repos, {v:val : {}})')
 endfunction "}}}
 
 function! s:cmd_apply(config) "{{{
@@ -182,7 +177,7 @@ function! s:cmd_helptags() "{{{
   endfor
 endfunction "}}}
 
-function! s:cmd_dump() "{{{
+function! s:cmd_repo2stdout() "{{{
   new
   setlocal buftype=nofile
   call append(0, keys(filter(deepcopy(s:repos), '!isdirectory(v:key) && !get(v:val, "pinned", 0)')))
@@ -267,17 +262,14 @@ function! s:on_filetype(filetype) "{{{
       let params.__loaded = 1
     endif
   endfor
-  let &runtimepath = s:rtp_generate(dirs)
-  for plugin_path in s:globpath(join(dirs,','), 'plugin/**/*.vim')
-    execute 'source' plugin_path
-  endfor
+  call s:inject_runtimepath(dirs)
 endfunction "}}}
 
 " Repos {{{2
 function! s:find_ghq_root() "{{{
   let gitconfig = readfile(expand('~/.gitconfig'))
   let ghq_root = filter(map(gitconfig, 'matchstr(v:val, ''root\s*=\s*\zs.*'')'), 'v:val isnot""')
-  return ghq_root[0]
+  return !empty(ghq_root) ? ghq_root[0] : expand('~/.ghq')
 endfunction "}}}
 
 function! s:get_path(name) " {{{
@@ -325,8 +317,12 @@ function! s:source_scripts(paths) "{{{
 endfunction "}}}
 
 function! s:inject_runtimepath(dirs) "{{{
+  for d in a:dirs
+    call s:log(s:INFO, printf('s:inject_runtimepath %s', d))
+  endfor
   let &runtimepath = s:rtp_generate(a:dirs)
-  for plugin_path in s:globpath(join(a:dirs,','), 'plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'after/**/*.vim')
+  for plugin_path in s:globpath(join(a:dirs,','), 'plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'ftplugin/**/*.vim')
+        \ + s:globpath(join(a:dirs,','), 'after/plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'after/ftplugin/**/*.vim')
     execute 'source' plugin_path
   endfor
 endfunction "}}}
@@ -382,6 +378,10 @@ function! s:pseudo_command(name, cmd, bang, args) "{{{
 endfunction "}}}
 
 " Misc {{{2
+function! s:is_globskip(dir) "{{{
+  return has_key(s:repos, a:dir) || a:dir =~# '\~$'
+endfunction "}}}
+
 function! s:globpath(path, expr) "{{{
   return has('patch-7.4.279') ? globpath(a:path, a:expr, 0, 1) : split(globpath(a:path, a:expr, 1))
 endfunction "}}}
@@ -399,8 +399,8 @@ function! s:to_list(value) "{{{
 endfunction "}}}
 
 function! s:included(values, name) "{{{
-  let values = type(a:values) == type('') ? [a:values] : a:values
-  return len(filter(copy(values), 'a:name =~# v:val')) > 0
+  let values = type(a:values) == type([]) ? a:values : [a:values]
+  return len(filter(split(a:name, '\.'), 'index(values, v:val) >= 0')) > 0
 endfunction "}}}
 
 function! s:log(level, msg) "{{{
