@@ -41,6 +41,8 @@ endfunction "}}}
 function! gh9#end(...) "{{{
   delcommand Ghq
   delcommand GhqGlob
+  command! -nargs=1 Ghq  call s:cmd_force_bundle(<args>)
+  command! -nargs=1 -complete=dir GhqGlob  call s:cmd_force_globlocal(<args>)
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction "}}}
 
@@ -57,6 +59,9 @@ function! gh9#dump() "{{{
   for key in keys(repos)
     if has_key(repos[key], '__loaded')
       call remove(repos[key], '__loaded')
+    endif
+    if has_key(repos[key], '__temprorary')
+      call remove(repos, key)
     endif
   endfor
   return string({'repos': repos, 'dirs': s:_dirs, 'plugins': s:_plugins, 'ftdetects': s:_ftdetects, 'commands': s:_commands})
@@ -207,6 +212,22 @@ function! s:map_tryhelp(word) "{{{
   catch /^Vim\%((\a\+)\)\=:E149/
     execute 'Help' a:word
   endtry
+endfunction "}}}
+
+function! s:cmd_force_bundle(bundle) "{{{
+  if empty(a:bundle) | return | endif
+  let s:repos[a:bundle] = {'__loaded': 1, '__temprorary': 1}
+  call s:inject_runtimepath([s:get_path(a:bundle)])
+endfunction "}}}
+
+function! s:cmd_force_globlocal(dir) "{{{
+  if !isdirectory(expand(a:dir))
+    echohl WarningMsg | echomsg 'Not found:' a:dir | echohl NONE
+    return
+  endif
+  let dirs = filter(s:globpath(a:dir, '*'), '!s:is_globskip(v:val)')
+  call s:inject_runtimepath(dirs)
+  call map(dirs, 'extend(s:repos, {v:val : {}})')
 endfunction "}}}
 
 " Completion {{{2
