@@ -23,26 +23,19 @@ command! -complete=customlist,s:help_complete -nargs=* Help
 nnoremap <silent> K  :<C-u>call <SID>map_tryhelp("<C-r><C-w>")<CR>
 
 function! gh9#begin(...) "{{{
-  for a in a:000
-    if type(a) == type('')
-      let dir = a
-    elseif type(a) == type({})
-      let dump = a
-    endif
-  endfor
-  if exists('dump') && s:validate_dump(dump)
+  if a:0 && type(a:1) == type({}) && s:validate_dump(a:1)
     command! -buffer -nargs=+ Ghq  call s:cmd_nop()
     command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_nop()
-    let s:repos = dump.repos
-    let s:_dirs = dump.dirs
-    let s:_plugins = dump.plugins
-    let s:_ftdetects = dump.ftdetects
-    let s:_commands = dump.commands
+    let s:repos = a:1.repos
+    let s:_dirs = a:1.dirs
+    let s:_plugins = a:1.plugins
+    let s:_ftdetects = a:1.ftdetects
+    let s:_commands = a:1.commands
   else
     command! -buffer -nargs=+ Ghq  call s:cmd_bundle(<args>)
     command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_globlocal(<args>)
   endif
-  call s:cmd_init(exists('dir') ? dir : [])
+  call s:cmd_init()
 endfunction "}}}
 
 function! gh9#end(...) "{{{
@@ -93,9 +86,10 @@ endfunction "}}}
 
 " Internals {{{1
 " Commands {{{2
-function! s:cmd_init(dirs) "{{{
+function! s:cmd_init() "{{{
   if !exists('s:rtp') | let s:rtp = &runtimepath | endif
-  let s:ghq_root = !empty(a:dirs) ? a:dirs[0] : s:find_ghq_root()
+  let s:ghq_root = exists('$GHQ_ROOT') && isdirectory(expand($GHQ_ROOT))
+        \ ? expand($GHQ_ROOT) : s:find_ghq_root()
 endfunction "}}}
 
 function! s:cmd_bundle(bundle, ...) "{{{
