@@ -196,6 +196,7 @@ function! s:cmd_help(term) "{{{
   try
     let &rtp = join(map(values(s:repos), 'v:val.__path'),',')
     execute 'help' a:term
+    source $VIMRUNTIME/syntax/help.vim " HACK: force enable syntax
   catch /^Vim\%((\a\+)\)\=:E149/
     echohl WarningMsg | echomsg 'gh9: Sorry, no help for ' . a:term | echohl NONE
   finally
@@ -217,6 +218,7 @@ endfunction "}}}
 function! s:cmd_force_bundle(bundle) "{{{
   if empty(a:bundle) | return | endif
   let s:repos[a:bundle] = {'__loaded': 1, '__temprorary': 1}
+  call s:get_path(a:bundle)
   call s:inject_runtimepath([s:get_path(a:bundle)])
 endfunction "}}}
 
