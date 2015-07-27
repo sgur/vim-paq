@@ -23,19 +23,9 @@ command! -complete=customlist,s:help_complete -nargs=* Help
 nnoremap <silent> K  :<C-u>call <SID>map_tryhelp("<C-r><C-w>")<CR>
 
 function! gh9#begin(...) "{{{
-  if a:0 && type(a:1) == type({}) && s:validate_dump(a:1)
-    command! -buffer -nargs=+ Ghq  call s:cmd_nop()
-    command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_nop()
-    let s:repos = a:1.repos
-    let s:_dirs = a:1.dirs
-    let s:_plugins = a:1.plugins
-    let s:_ftdetects = a:1.ftdetects
-    let s:_commands = a:1.commands
-  else
-    command! -buffer -nargs=+ Ghq  call s:cmd_bundle(<args>)
-    command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_globlocal(<args>)
-  endif
   call s:cmd_init()
+  command! -buffer -nargs=+ Ghq  call s:cmd_bundle(<args>)
+  command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_globlocal(<args>)
 endfunction "}}}
 
 function! gh9#end(...) "{{{
@@ -44,27 +34,6 @@ function! gh9#end(...) "{{{
   command! -nargs=1 Ghq  call s:cmd_force_bundle(<args>)
   command! -nargs=1 -complete=dir GhqGlob  call s:cmd_force_globlocal(<args>)
   call s:cmd_apply(a:0 ? a:1 : {})
-endfunction "}}}
-
-function! s:validate_dump(dict) "{{{
-  return has_key(a:dict, 'repos') && type(a:dict.repos) == type({})
-        \ && has_key(a:dict, 'dirs') && type(a:dict.dirs) == type([])
-        \ && has_key(a:dict, 'plugins') && type(a:dict.plugins) == type([])
-        \ && has_key(a:dict, 'ftdetects') && type(a:dict.ftdetects) == type([])
-        \ && has_key(a:dict, 'commands') && type(a:dict.commands) == type([])
-endfunction "}}}
-
-function! gh9#dump() "{{{
-  let repos = deepcopy(s:repos)
-  for key in keys(repos)
-    if has_key(repos[key], '__loaded')
-      call remove(repos[key], '__loaded')
-    endif
-    if has_key(repos[key], '__temprorary')
-      call remove(repos, key)
-    endif
-  endfor
-  return string({'repos': repos, 'dirs': s:_dirs, 'plugins': s:_plugins, 'ftdetects': s:_ftdetects, 'commands': s:_commands})
 endfunction "}}}
 
 function! gh9#tap(bundle) "{{{
@@ -117,60 +86,17 @@ endfunction "}}}
 function! s:cmd_apply(config) "{{{
   if !&loadplugins | return | endif
 
-  if !exists('s:_dirs')
-    let s:_dirs = []
-    let s:_ftdetects = []
-    let s:_plugins = []
-    let s:_commands = []
-    for [name, params] in items(s:repos)
-      call extend(params, a:config, 'keep')
-      let path = has_key(params, 'rtp') ? join([path, params.rtp], '/') : s:get_path(name)
-      if empty(path) || !get(params, 'enabled', 1)
-        continue
-      endif
-
-      if has_key(params, 'filetype')
-        let s:_ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
-      endif
-
-      let preload = has_key(params, 'preload') ? params.preload : 0
-      let triggered = 0
-      if has_key(params, 'filetype') || has_key(params, 'autoload')
-        let s:_plugins += preload ? s:get_preloads(path) : []
-        let triggered = 1
-      endif
-      if has_key(params, 'command')
-        let s:_commands += [[params.command, name]]
-        let triggered = 1
-      endif
-      if !triggered
-        let s:_dirs += [path]
-        let params.__loaded = 1
-      endif
-    endfor
-  endif
-  call s:set_runtimepath(s:_dirs)
-  call s:source_scripts(s:_ftdetects)
-  for [cmd, name] in s:_commands
-    call s:define_pseudo_commands(cmd, name)
-    unlet cmd
-  endfor
+  let [dirs, ftdetects, plugins, commands] = s:parse_repos(a:config)
+  call s:set_runtimepath(dirs)
+  call map(ftdetects, 's:source_script(v:val)')
+  call map(plugins, 's:source_script(v:val)')
+  call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
 
   augroup plugin_gh9
     autocmd!
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
     autocmd FuncUndefined *  call s:on_funcundefined(expand('<amatch>'))
-    if !empty(s:_plugins)
-      autocmd VimEnter *  call s:on_vimenter()
-    endif
   augroup END
-
-  if has('vim_starting')
-    return
-  endif
-  for path in split(&runtimepath, ',')
-    call s:source_scripts(s:get_preloads(path))
-  endfor
 endfunction "}}}
 
 function! s:cmd_helptags() "{{{
@@ -247,17 +173,6 @@ function! s:help_complete(arglead, cmdline, cursorpos) "{{{
 endfunction "}}}
 
 " Autocmd Events {{{2
-function! s:on_vimenter() "{{{
-  autocmd! plugin_gh9 VimEnter *
-  if !exists('s:_plugins')
-    return
-  endif
-  call s:source_scripts(s:_plugins)
-  if !empty(s:log)
-    call s:message(s:WARNING, 's:echomsg_warning')
-  endif
-endfunction "}}}
-
 function! s:on_funcundefined(funcname) "{{{
   let dirs = []
   for [name, params] in items(s:repos)
@@ -289,6 +204,37 @@ function! s:on_filetype(filetype) "{{{
 endfunction "}}}
 
 " Repos {{{2
+function! s:parse_repos(global) "{{{
+  let [dirs, ftdetects, plugins, commands] = [[], [], [], []]
+  for [name, params] in items(s:repos)
+    call extend(params, a:global, 'keep')
+    let path = has_key(params, 'rtp') ? join([path, params.rtp], '/') : s:get_path(name)
+    if empty(path) || !get(params, 'enabled', 1)
+      continue
+    endif
+
+    if has_key(params, 'filetype')
+      let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
+    endif
+
+    let preload = has_key(params, 'preload') ? params.preload : 0
+    let triggered = 0
+    if has_key(params, 'filetype') || has_key(params, 'autoload')
+      let plugins += preload ? s:get_preloads(path) : []
+      let triggered = 1
+    endif
+    if has_key(params, 'command')
+      let commands += [[params.command, name]]
+      let triggered = 1
+    endif
+    if !triggered
+      let dirs += [path]
+      let params.__loaded = 1
+    endif
+  endfor
+  return [dirs, ftdetects, plugins, commands]
+endfunction "}}}
+
 function! s:find_ghq_root() "{{{
   let gitconfig = readfile(expand('~/.gitconfig'))
   let ghq_root = filter(map(gitconfig, 'matchstr(v:val, ''root\s*=\s*\zs.*'')'), 'v:val isnot""')
@@ -333,10 +279,8 @@ function! s:validate_repos() "{{{
 endfunction "}}}
 
 " RTP {{{2
-function! s:source_scripts(paths) "{{{
-  for path in a:paths
-    source `=path`
-  endfor
+function! s:source_script(path) "{{{
+  source `=a:path`
 endfunction "}}}
 
 function! s:inject_runtimepath(dirs) "{{{
@@ -382,7 +326,6 @@ endfunction "}}}
 function! s:define_pseudo_commands(commands, name) "{{{
   let commands = type(a:commands) == type([]) ? a:commands : [a:commands]
   for command in commands
-    if type(command) != type({}) | return | endif
     let cmd = command.name
     if get(command, 'bang', 0)
       let bang = command.bang
