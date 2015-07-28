@@ -255,27 +255,26 @@ endfunction "}}}
 function! s:get_path(name) " {{{
   let repo = get(s:repos, a:name, {})
   if !has_key(repo, '__path')
-    let repo.__path = s:find_path(a:name)
+    let repo.__path = s:find_path(a:name, get(repo, 'host', ''))
   endif
   return repo.__path
 endfunction " }}}
 
-function! s:find_path(name) "{{{
-  let repo_name = s:repo_url(a:name)
-  if isdirectory(repo_name)
-    return repo_name
+function! s:find_path(name, prefix) "{{{
+  if isdirectory(a:name)
+    return a:name
   endif
+  let repo_name = s:repo_url(a:name, a:prefix)
   let path = expand(join([s:ghq_root, repo_name], '/'))
   if isdirectory(path)
     return path
   endif
+  call s:log(s:INFO, 'no directory found: ' . a:name)
   return ''
 endfunction "}}}
 
-function! s:repo_url(name) "{{{
-  return count(split(tr(a:name, '\', '/'), '\zs'), '/') == 1
-        \ ? 'github.com/' . a:name
-        \ : substitute(a:name, '^https\?://', '', '')
+function! s:repo_url(name, prefix) "{{{
+  return printf("%s/%s", empty(a:prefix) ? 'github.com' : a:prefix, a:name)
 endfunction "}}}
 
 function! s:validate_repos() "{{{
