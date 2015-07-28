@@ -89,13 +89,16 @@ function! s:cmd_apply(config) "{{{
   let [dirs, ftdetects, plugins, commands] = s:parse_repos(a:config)
   call s:set_runtimepath(dirs)
   call map(ftdetects, 's:source_script(v:val)')
-  call map(plugins, 's:source_script(v:val)')
   call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
 
   augroup plugin_gh9
     autocmd!
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
     autocmd FuncUndefined *  call s:on_funcundefined(expand('<amatch>'))
+    if !empty(plugins)
+      let s:on_vimenter_plugins = plugins
+      autocmd VimEnter *  call s:on_vimenter()
+    endif
   augroup END
 endfunction "}}}
 
@@ -173,6 +176,14 @@ function! s:help_complete(arglead, cmdline, cursorpos) "{{{
 endfunction "}}}
 
 " Autocmd Events {{{2
+function! s:on_vimenter() "{{{
+  autocmd! plugin_gh9 VimEnter *
+  call map(get(s:, 'on_vimenter_plugins', []), 's:source_script(v:val)')
+  if !empty(s:log)
+    call s:message(s:WARNING, 's:echomsg_warning')
+  endif
+endfunction "}}}
+
 function! s:on_funcundefined(funcname) "{{{
   let dirs = []
   for [name, params] in items(s:repos)
@@ -390,8 +401,8 @@ function! s:echomsg_warning(time, msg) "{{{
 endfunction "}}}
 " 2}}}
 
-let s:levels = ['WARNING', 'INFO']
-let [s:WARNING, s:INFO] = range(len(s:levels))
+let s:levels = ['ERROR', 'WARNING', 'INFO']
+let [s:ERROR, s:WARNING, s:INFO] = range(len(s:levels))
 function! s:lvl2str(level) "{{{
   return s:levels[a:level]
 endfunction "}}}

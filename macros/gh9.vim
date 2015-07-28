@@ -47,6 +47,7 @@ endfunction "}}}
 " Invoking {{{2
 function! s:invoke_ghq_import(dirs) "{{{
   for dir in a:dirs
+    let dir = s:validate_url(dir)
     let cmd = printf('ghq get -u %s %s'
           \ , g:gh9_create_shallow_clone ? '--shallow' : '', dir)
     for line in split(iconv(system(cmd), &termencoding, &encoding), "\n")
@@ -73,6 +74,11 @@ function! s:update_submodules(dirs) "{{{
 endfunction "}}}
 
 " Repos {{{2
+function! s:validate_url(dir) "{{{
+  let repo = gh9#repos(a:dir)
+  return has_key(repo, 'host') ? 'https://' . repo.host . '/' . a:dir : a:dir
+endfunction "}}}
+
 function! s:has_path(name)
   let repo = gh9#repos(a:name)
   return has_key(repo, '__path') && !empty(repo.__path)
