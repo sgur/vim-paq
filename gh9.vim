@@ -20,7 +20,6 @@ command! -nargs=0 Helptags  call s:cmd_helptags()
 command! -nargs=0 GhqMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
-nnoremap <silent> K  :<C-u>call <SID>map_tryhelp("<C-r><C-w>")<CR>
 
 function! gh9#begin(...) "{{{
   call s:cmd_init()
@@ -94,6 +93,8 @@ function! s:cmd_apply(config) "{{{
   augroup plugin_gh9
     autocmd!
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
+    autocmd FileType help  nnoremap <silent> <buffer> <C-]>  :<C-u>call <SID>map_tag(v:count)<CR>
+    autocmd FileType vim,help nnoremap <silent> <buffer> K  :<C-u>call <SID>map_lookup(v:count)<CR>
     autocmd FuncUndefined *  call s:on_funcundefined(expand('<amatch>'))
     if !empty(plugins)
       let s:on_vimenter_plugins = plugins
@@ -121,27 +122,10 @@ function! s:cmd_repo2stdout() "{{{
 endfunction "}}}
 
 function! s:cmd_help(term) "{{{
-  let rtp = &rtp
-  try
-    let &rtp = join(map(values(s:repos), 'v:val.__path'),',')
-    execute 'help' a:term
-    source $VIMRUNTIME/syntax/help.vim " HACK: force enable syntax
-  catch /^Vim\%((\a\+)\)\=:E149/
-    echohl WarningMsg | echomsg 'gh9: Sorry, no help for ' . a:term | echohl NONE
-  finally
-    let &rtp = rtp
-  endtry
+  call s:try_with_repo_rtps('help ' . a:term)
 endfunction "}}}
 
 function! s:cmd_nop() "{{{
-endfunction "}}}
-
-function! s:map_tryhelp(word) "{{{
-  try
-    execute 'help' a:word
-  catch /^Vim\%((\a\+)\)\=:E149/
-    execute 'Help' a:word
-  endtry
 endfunction "}}}
 
 function! s:cmd_force_bundle(bundle) "{{{
@@ -159,6 +143,32 @@ function! s:cmd_force_globlocal(dir) "{{{
   let dirs = filter(s:globpath(a:dir, '*'), '!s:is_globskip(v:val)')
   call s:inject_runtimepath(dirs)
   call map(dirs, 'extend(s:repos, {v:val : {}})')
+endfunction "}}}
+
+" Map {{{2
+function! s:map_lookup(count) "{{{
+  if &l:keywordprg =~# '^man'
+    execute 'normal! ' a:count . 'K'
+    return
+  elseif &l:keywordprg isnot# ':help' && !empty(&l:keywordprg)
+    execute 'normal! K'
+    return
+  endif
+  let cmd = 'help ' . expand('<cword>')
+  try
+    execute cmd
+  catch /^Vim\%((\a\+)\)\=:E\%(149\)/
+    call s:try_with_repo_rtps(cmd)
+  endtry
+endfunction "}}}
+
+function! s:map_tag(count) "{{{
+  let cmd = printf("%dtag %s", a:count, expand('<cword>'))
+  try
+    execute cmd
+  catch /^Vim\%((\a\+)\)\=:E\%(426\|257\)/
+    call s:try_with_repo_rtps(cmd)
+  endtry
 endfunction "}}}
 
 " Completion {{{2
@@ -397,6 +407,18 @@ endfunction "}}}
 
 function! s:echomsg_warning(time, msg) "{{{
   echohl WarningMsg | execute 'echomsg' string(a:msg) | echohl NONE
+endfunction "}}}
+
+function! s:try_with_repo_rtps(cmd) "{{{
+    let rtp = &rtp
+    try
+      let &rtp = join(map(values(s:repos), 'v:val.__path'),',')
+      execute a:cmd
+      source $VIMRUNTIME/syntax/help.vim " HACK: force enable syntax
+    catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|429\|257\)/
+    finally
+      let &rtp = rtp
+    endtry
 endfunction "}}}
 " 2}}}
 
