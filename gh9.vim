@@ -115,7 +115,9 @@ endfunction "}}}
 function! s:cmd_repo2stdout() "{{{
   new
   setlocal buftype=nofile
-  call append(0, keys(filter(deepcopy(s:repos), '!isdirectory(v:key) && !get(v:val, "pinned", 0)')))
+  let repos = filter(deepcopy(s:repos), '!isdirectory(v:key) && !get(v:val, "pinned", 0)')
+  let repo_names = map(items(repos), 'has_key(v:val[1], "host") ? "https://" . s:repo_url(v:val[0], v:val[1].host) : v:val[0]')
+  call append(0, repo_names)
   normal! Gdd
   execute '%print'
   bdelete
