@@ -204,6 +204,7 @@ function! s:on_funcundefined(funcname) "{{{
     endif
     if stridx(a:funcname , params.autoload) == 0
       call s:log(s:INFO, printf('loading %s on autoload[%s] (%s)', name, params.autoload, a:funcname))
+      let dirs += s:depends(get(params, 'depends', []))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -219,6 +220,7 @@ function! s:on_filetype(filetype) "{{{
     endif
     if s:included(params.filetype, a:filetype)
       call s:log(s:INFO, printf('loading %s on filetype[%s]', name, a:filetype))
+      let dirs += s:depends(get(params, 'depends', []))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -227,6 +229,21 @@ function! s:on_filetype(filetype) "{{{
 endfunction "}}}
 
 " Repos {{{2
+function! s:depends(bundles) "{{{
+  if empty(a:bundles)
+    return []
+  endif
+  let depends = type(a:bundles) == type([]) ? a:bundles : [a:bundles]
+  let _ = []
+  for depend in depends
+    if !get(s:repos[depend], '__loaded', 0)
+      let _ += [s:get_path(depend)]
+      let s:repos[depend].__loaded = 1
+    endif
+  endfor
+  return _
+endfunction "}}}
+
 function! s:parse_repos(global) "{{{
   let [dirs, ftdetects, plugins, commands] = [[], [], [], []]
   for [name, params] in items(s:repos)
