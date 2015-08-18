@@ -328,7 +328,7 @@ function! s:inject_runtimepath(dirs) "{{{
   endfor
   let &runtimepath = s:rtp_generate(a:dirs)
   for plugin_path in s:globpath(join(a:dirs,','), 'plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'ftplugin/**/*.vim')
-        \ + s:globpath(join(a:dirs,','), 'after/plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'after/ftplugin/**/*.vim')
+        " \ + s:globpath(join(a:dirs,','), 'after/plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'after/ftplugin/**/*.vim')
     execute 'source' plugin_path
   endfor
 endfunction "}}}
