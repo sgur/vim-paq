@@ -369,8 +369,11 @@ function! s:define_pseudo_commands(commands, name) "{{{
     if get(command, 'bang', 0)
       let bang = command.bang
     endif
-    let attr = map(filter(copy(command), 'v:key isnot# "bang" && v:key isnot# "name"'), 'printf("-%s=%s", v:key, v:val)')
-    execute 'command!' join(values(attr), ' ') (exists('bang') ? '-bang' : '') cmd
+    if has_key(command, 'range')
+      let range = command.range == 1 ? '-range' : '-range=' . command.range
+    endif
+    let attr = map(filter(copy(command), 'index(["bang", "name", "range"], v:key) == -1'), 'printf("-%s=%s", v:key, v:val)')
+    execute 'command!' join(values(attr), ' ') (exists('bang') ? '-bang' : '') (exists('range') ? range : '') cmd
           \ printf('call s:pseudo_command(%s, %s, %s, %s)', string(a:name), string(cmd), "'<bang>'", "<q-args>")
   endfor
 endfunction "}}}
