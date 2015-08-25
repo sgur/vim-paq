@@ -248,7 +248,7 @@ function! s:parse_repos(global) "{{{
   let [dirs, ftdetects, plugins, commands] = [[], [], [], []]
   for [name, params] in items(s:repos)
     call extend(params, a:global, 'keep')
-    let path = has_key(params, 'rtp') ? join([path, params.rtp], '/') : s:get_path(name)
+    let path = s:get_path(name)
     if empty(path) || !get(params, 'enabled', 1)
       continue
     endif
@@ -285,6 +285,9 @@ function! s:get_path(name) " {{{
   let repo = get(s:repos, a:name, {})
   if !has_key(repo, '__path')
     let repo.__path = s:find_path(a:name, get(repo, 'host', ''))
+    if has_key(repo, 'rtp')
+      let repo.__path .= s:sep . repo.rtp
+    endif
   endif
   return repo.__path
 endfunction " }}}
@@ -452,6 +455,7 @@ endfunction "}}}
 
 let s:repos = get(s:, 'repos', {})
 let s:log = get(s:, 'log', [])
+let s:sep = has('win32') && !&shellslash ? '\' : '/'
 " 1}}}
 
 
