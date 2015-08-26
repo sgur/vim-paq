@@ -21,7 +21,7 @@ command! -nargs=0 GhqMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
 
-function! gh9#begin(...) "{{{
+function! gh9#begin() "{{{
   call s:cmd_init()
   command! -buffer -nargs=+ Ghq  call s:cmd_bundle(<args>)
   command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_globlocal(<args>)
@@ -115,7 +115,7 @@ endfunction "}}}
 function! s:cmd_repo2stdout() "{{{
   new
   setlocal buftype=nofile
-  let repos = filter(deepcopy(s:repos), '!isdirectory(v:key) && !get(v:val, "pinned", 0)')
+  let repos = filter(deepcopy(s:repos), '!isdirectory(v:key)')
   let repo_names = map(items(repos), 'has_key(v:val[1], "host") ? "https://" . s:repo_url(v:val[0], v:val[1].host) : v:val[0]')
   call append(0, repo_names)
   normal! Gdd

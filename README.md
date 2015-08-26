@@ -8,8 +8,6 @@ Description
 
 [ghq](https://github.com/motemen/ghq) で利用される[ディレクトリ構造](https://github.com/motemen/ghq#directory-structures)に基いて、プラグインをロードします。
 
-[Vundle](https://github.com/gmarik/Vundle.vim) にできるだけ近いコマンド体系となっています。
-
 Requirement
 -----------
 
@@ -18,49 +16,53 @@ Requirement
 Install
 -------
 
+### Locate under \[ghq.root\]
+
 ```sh
-ghq get sgur/vim-gh9
+ghq get -u --shallow sgur/vim-gh9
 ```
 
+### Git clone to ~/.vim
+
+```sh
+cd ~/.vim
+git clone https://github.com/sgur/vim-gh9
+```
+
+### vimrc example
+
 ```vim
-source /path/to/gh9.vim
+source ~/.vim/vim-gh9/gh9.vim
 
 call gh9#begin()
-
-" Enable some convenient commands
-Ghq 'sgur/vim-gh9'
-" Or
-" Use only basic commands
-Ghq 'sgur/vim-gh9', {'enabled': 0}
 
 " ...
 
 call gh9#end()
 ```
 
-Usage
------
-
 ### Detailed vimrc example
 
 ```vim
-set nocompatible              " be iMproved, required
 filetype off                  " required
 
 source /path/to/gh9.vim
 
 call gh9#begin()
-" alternatively, pass a path where Vundle should install plugins
-"call gh9#begin('~/some/path/here')
 
-" let gh9 manage gh9
+" Let vim-gh9 manage oneself
 Ghq 'sgur/vim-gh9'
 
-" plugin on GitHub repo
+" Plugin on github
 Ghq 'tpope/vim-fugitive'
 
+" Plugin on bitbucket
+Ghq 'http://bitbucket.org/sjl/gundo.vim'
+" or specify repo
+"Ghq 'sjl/gundo.vim', {'host': 'bitbucket.org'}
+
 " Determine whether the plugin will load or not via 'enabled' flag.
-Ghq 'sjl/gundo.vim', {'enabled': has('python')}
+Ghq 'davidhalter/jedi-vim', {'enabled': has('python') || has('python3')}
 
 " Add path to &rtp before ghql#end()
 " Useful for start plugins via function call
@@ -78,7 +80,10 @@ Ghq 'othree/html5.vim', {'filetype': ['html', 'javascript']}
 " Pass the path to set the runtimepath properly.
 Ghq 'rstacruz/sparkup', {'rtp': 'vim/'}
 
-" Disable update by 'pinned' flag
+" Define pseudo command
+Ghq 'AndrewRadev/inline_edit.vim', {'command' : {'name': 'InlineEdit', 'nargs': '*'}}
+
+" Disable update by 'pinned' flag (Only enabled for ':GhqUpdate' command)
 Ghq 'Shougo/vimproc.vim', {'pinned': 1}
 
 " All of your Plugins must be added before the following line
@@ -88,39 +93,47 @@ filetype plugin indent on    " required
 "filetype plugin on
 ```
 
+Usage
+-----
+
 ### Update plugins with ghq
 
-`GhqInstall` により、`ghq import` プラグインのアップデートを実施します。
+`:GhqInstall` により、`ghq import` プラグインのアップデートを実施します。
 
-`GhqInstall!` もしくは `GhqUpdate` を実行した場合、既にインストールされているプラグインのみを更新します。
+`:GhqInstall!` もしくは `:GhqUpdate` を実行した場合、既にインストールされているプラグインのみを更新します。
 
-`GhqRepos` コマンドを利用することにより、標準出力に管理しているプラグインのリストを出力することができます。
+`:GhqRepos` コマンドを利用することにより、標準出力に管理しているプラグインのリストを出力することができます。
 
-```
-vim -e -s -S ~/.vimrc +GhqReps +qall! | ghq import -u --shallow
-```
-
-vim のオプションが複雑なので、バッチファイルを用意しています。
-
-```
-macros\gh9.bat | ghq import -u --shallow (windows)
-macros\gh9.sh | ghq import -u --shallow (linux)
-```
+### ghq import subcommand
 
 ghq の subcommand を利用する場合、`.gitconfig` に以下のエントリを追加してください。
 
 ```
 [ghq "import"]
-	gh9 = /path/to/vim-gh9/macros/gh9.sh
+	vim = /path/to/vim-gh9/macros/gh9.sh
 ```
-(※ windows の場合、環境変数`%PATH%`に`sh.exe`があるパスを追加してください)
+(※ windows の場合、環境変数`%PATH%`に`sh.exe`があるパスを追加してください 例: `c:/Program Files/Git/bin` 等)
 
 その後、以下のコマンドを実行します。
 
-```
-ghq import gh9 -u --shallow
+```sh
+ghq import vim -u --shallow
 ```
 
+git submodule を利用しているプラグインがある場合は、以下のように `fetch.recurseSubmodules` を有効にしておくと、submodule の更新も同時にしてくれるので便利です。
+
+* グローバルに設定する場合
+
+  ```sh
+  git config --global fetch.recurseSubmodules true
+  ```
+
+* リポジトリ毎に設定する場合
+
+  ```sh
+  cd /path/to/repo
+  git config --local fetch.recurseSubmodules true
+  ```
 
 License
 -------
