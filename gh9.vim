@@ -296,17 +296,19 @@ function! s:find_path(name, prefix) "{{{
   if isdirectory(a:name)
     return a:name
   endif
-  let repo_name = s:repo_url(a:name, a:prefix)
-  let path = expand(join([s:ghq_root, repo_name], '/'))
-  if isdirectory(path)
-    return path
+  let path = expand(join([s:ghq_root, s:repo_url(a:name, a:prefix)], '/'))
+  if !isdirectory(path)
+    call s:log(s:INFO, 'no directory found: ' . a:name)
   endif
-  call s:log(s:INFO, 'no directory found: ' . a:name)
-  return ''
+  return path
 endfunction "}}}
 
 function! s:repo_url(name, prefix) "{{{
-  return printf("%s/%s", empty(a:prefix) ? 'github.com' : a:prefix, a:name)
+  if empty(a:prefix) && match(a:name, '/', 0, 2) > -1
+    return matchstr(a:name, 'https\?:\zs.\+$')
+  else
+    return printf("%s/%s", empty(a:prefix) ? 'github.com' : a:prefix, a:name)
+  endif
 endfunction "}}}
 
 function! s:validate_repos() "{{{
