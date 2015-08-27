@@ -277,7 +277,7 @@ endfunction "}}}
 
 function! s:find_ghq_root() "{{{
   let gitconfig = readfile(expand('~/.gitconfig'))
-  let ghq_root = filter(map(gitconfig, 'matchstr(v:val, ''root\s*=\s*\zs.*'')'), 'v:val isnot""')
+  let ghq_root = filter(map(gitconfig, 'matchstr(v:val, ''root\s*=\s*\zs.*'')'), '!empty(v:val)')
   return !empty(ghq_root) ? ghq_root[0] : expand('~/.ghq')
 endfunction "}}}
 
@@ -329,9 +329,9 @@ function! s:inject_runtimepath(dirs) "{{{
   for d in a:dirs
     call s:log(s:INFO, printf('s:inject_runtimepath %s', d))
   endfor
-  let &runtimepath = s:rtp_generate(a:dirs)
   for plugin_path in s:globpath(join(a:dirs,','), 'plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'ftplugin/**/*.vim')
         " \ + s:globpath(join(a:dirs,','), 'after/plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'after/ftplugin/**/*.vim')
+  let &runtimepath = s:rtp_generate(&runtimepath, a:dirs)
     execute 'source' plugin_path
   endfor
 endfunction "}}}
@@ -340,13 +340,12 @@ function! s:set_runtimepath(dirs) "{{{
   if !exists('s:rtp')
     let s:rtp = &runtimepath
   endif
-  let &runtimepath = s:rtp
-  let &runtimepath = s:rtp_generate(a:dirs)
+  let &runtimepath = s:rtp_generate(s:rtp, a:dirs)
 endfunction "}}}
 
-function! s:rtp_generate(paths) "{{{
+function! s:rtp_generate(rtp, paths) "{{{
   let after_rtp = s:glob_after(join(a:paths, ','))
-  let rtps = split(&runtimepath, ',')
+  let rtps = split(a:rtp, ',')
   call extend(rtps, a:paths, 1)
   call extend(rtps, after_rtp, -1)
   return join(rtps, ',')
