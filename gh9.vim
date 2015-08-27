@@ -36,19 +36,16 @@ function! gh9#end(...) "{{{
 endfunction "}}}
 
 function! gh9#tap(bundle) "{{{
-  if !has_key(s:repos, a:bundle)
-    let msg = printf('no repository found on gh9#tap("%s")', a:bundle)
-    if has('vim_starting')
-      call s:log(s:WARNING, msg)
-    else
-      echohl WarningMsg | echomsg msg | echohl NONE
-    endif
-    return 0
-  endif
   if !&loadplugins | return 0 | endif
+  if has_key(s:repos, a:bundle)
+    return get(s:repos[a:bundle], 'enabled', 1) && isdirectory(s:get_path(a:bundle))
+  endif
 
-  if isdirectory(s:get_path(a:bundle)) && get(s:repos[a:bundle], 'enabled', 1)
-    return 1
+  let msg = printf('no repository found on gh9#tap("%s")', a:bundle)
+  if has('vim_starting')
+    call s:log(s:WARNING, msg)
+  else
+    echohl WarningMsg | echomsg msg | echohl NONE
   endif
   return 0
 endfunction "}}}
@@ -61,8 +58,6 @@ endfunction "}}}
 " Commands {{{2
 function! s:cmd_init() "{{{
   if !exists('s:rtp') | let s:rtp = &runtimepath | endif
-  let s:ghq_root = exists('$GHQ_ROOT') && isdirectory(expand($GHQ_ROOT))
-        \ ? expand($GHQ_ROOT) : s:find_ghq_root()
 endfunction "}}}
 
 function! s:cmd_bundle(bundle, ...) "{{{
@@ -117,7 +112,7 @@ function! s:cmd_repo2stdout() "{{{
   setlocal buftype=nofile
   let repos = filter(deepcopy(s:repos), '!isdirectory(v:key)')
   let repo_names = map(items(repos), 'has_key(v:val[1], "host") ? "https://" . s:repo_url(v:val[0], v:val[1].host) : v:val[0]')
-  call append(0, repo_names)
+  call append(0, sort(repo_names))
   normal! Gdd
   execute '%print'
   bdelete
@@ -132,9 +127,9 @@ endfunction "}}}
 
 function! s:cmd_force_bundle(bundle) "{{{
   if empty(a:bundle) | return | endif
-  let s:repos[a:bundle] = {'__loaded': 1, '__temprorary': 1}
-  call s:get_path(a:bundle)
+  let s:repos[a:bundle] = {'__loaded': 1}
   call s:inject_runtimepath([s:get_path(a:bundle)])
+  call s:log(s:INFO, printf('loading %s after startup', s:get_path(a:bundle)))
 endfunction "}}}
 
 function! s:cmd_force_globlocal(dir) "{{{
@@ -144,7 +139,8 @@ function! s:cmd_force_globlocal(dir) "{{{
   endif
   let dirs = filter(s:globpath(a:dir, '*'), '!s:is_globskip(v:val)')
   call s:inject_runtimepath(dirs)
-  call map(dirs, 'extend(s:repos, {v:val : {}})')
+  call map(copy(dirs), 'extend(s:repos, {v:val : {"__loaded": 1}})')
+  call map(copy(dirs), 's:log(s:INFO, printf("loading %s after startup", v:val))')
 endfunction "}}}
 
 " Map {{{2
@@ -198,11 +194,8 @@ endfunction "}}}
 
 function! s:on_funcundefined(funcname) "{{{
   let dirs = []
-  for [name, params] in items(s:repos)
-    if !get(params, 'enabled', 1) || get(params, '__loaded', 0) || !has_key(params, 'autoload')
-      continue
-    endif
-    if stridx(a:funcname , params.autoload) == 0
+  for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'autoload') && !get(v:val[1], '__loaded', 0) && get(v:val[1], 'enabled', 1)")
+    if stridx(a:funcname, params.autoload) == 0
       call s:log(s:INFO, printf('loading %s on autoload[%s] (%s)', name, params.autoload, a:funcname))
       let dirs += s:depends(get(params, 'depends', []))
       let dirs += [s:get_path(name)]
@@ -214,10 +207,7 @@ endfunction "}}}
 
 function! s:on_filetype(filetype) "{{{
   let dirs = []
-  for [name, params] in items(s:repos)
-    if !get(params, 'enabled', 1) || get(params, '__loaded', 0) || !has_key(params, 'filetype')
-      continue
-    endif
+  for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'filetype') && !get(v:val[1], '__loaded', 0) && get(v:val[1], 'enabled', 1)")
     if s:included(params.filetype, a:filetype)
       call s:log(s:INFO, printf('loading %s on filetype[%s]', name, a:filetype))
       let dirs += s:depends(get(params, 'depends', []))
@@ -286,7 +276,7 @@ function! s:get_path(name) " {{{
   if !has_key(repo, '__path')
     let repo.__path = s:find_path(a:name, get(repo, 'host', ''))
     if has_key(repo, 'rtp')
-      let repo.__path .= s:sep . repo.rtp
+      let repo.__path .= '/' . repo.rtp
     endif
   endif
   return repo.__path
@@ -296,45 +286,25 @@ function! s:find_path(name, prefix) "{{{
   if isdirectory(a:name)
     return a:name
   endif
-  let path = expand(join([s:ghq_root, s:repo_url(a:name, a:prefix)], '/'))
-  if !isdirectory(path)
-    call s:log(s:INFO, 'no directory found: ' . a:name)
-  endif
-  return path
+  return s:ghq_root . '/' . s:repo_url(a:name, a:prefix)
 endfunction "}}}
 
 function! s:repo_url(name, prefix) "{{{
-  if empty(a:prefix) && match(a:name, '/', 0, 2) > -1
-    return matchstr(a:name, 'https\?:\zs.\+$')
-  else
-    return printf("%s/%s", empty(a:prefix) ? 'github.com' : a:prefix, a:name)
-  endif
-endfunction "}}}
-
-function! s:validate_repos() "{{{
-  let validation_keys = ['filetype', 'enabled', 'immediately', 'autoload', 'rtp', 'pinned', '__path', '__loaded']
-  for [name, params] in items(s:repos)
-    for key in keys(params)
-      if index(validation_keys, key) == -1
-        echohl ErrorMsg | echomsg 'Invalid Key:' name key | echohl NONE
-      endif
-    endfor
-  endfor
+  return !stridx(a:name, 'http')
+        \ ? substitute(a:name, '^https\?://', '', '')
+        \ : (empty(a:prefix) ? 'github.com' : a:prefix) . '/' . a:name
 endfunction "}}}
 
 " RTP {{{2
 function! s:source_script(path) "{{{
-  source `=a:path`
+  execute 'source' a:path
 endfunction "}}}
 
 function! s:inject_runtimepath(dirs) "{{{
-  for d in a:dirs
-    call s:log(s:INFO, printf('s:inject_runtimepath %s', d))
-  endfor
   let &runtimepath = s:rtp_generate(&runtimepath, a:dirs)
   let dirs = join(a:dirs,',')
   for plugin_path in s:globpath(dirs, 'plugin/**/*.vim')
-        \ + (empty(&filetype) ? [] : filter(s:globpath(dirs, 'ftplugin/**/*.vim'), 'v:val =~# "[\\/]" . &filetype'))
+        \ + (empty(&filetype) ? [] : (s:globpath(dirs, 'ftplugin/' . &filetype . '/*.vim') + s:globpath(dirs, 'ftplugin/' . &filetype . '_*.vim')))
     execute 'source' plugin_path
   endfor
 endfunction "}}}
@@ -396,7 +366,7 @@ function! s:is_globskip(dir) "{{{
 endfunction "}}}
 
 function! s:globpath(path, expr) "{{{
-  return has('patch-7.4.279') ? globpath(a:path, a:expr, 0, 1) : split(globpath(a:path, a:expr, 1))
+  return has('patch-7.4.279') ? globpath(a:path, a:expr, 1, 1) : split(globpath(a:path, a:expr, 1))
 endfunction "}}}
 
 function! s:systemlist(cmd) "{{{
@@ -449,6 +419,8 @@ function! s:try_with_repo_rtps(cmd) "{{{
 endfunction "}}}
 " 2}}}
 
+let s:ghq_root = exists('$GHQ_ROOT') && isdirectory(expand($GHQ_ROOT))
+      \ ? expand($GHQ_ROOT) : s:find_ghq_root()
 let s:levels = ['ERROR', 'WARNING', 'INFO']
 let [s:ERROR, s:WARNING, s:INFO] = range(len(s:levels))
 function! s:lvl2str(level) "{{{
@@ -457,7 +429,6 @@ endfunction "}}}
 
 let s:repos = get(s:, 'repos', {})
 let s:log = get(s:, 'log', [])
-let s:sep = has('win32') && !&shellslash ? '\' : '/'
 " 1}}}
 
 
