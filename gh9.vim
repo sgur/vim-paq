@@ -331,9 +331,10 @@ function! s:inject_runtimepath(dirs) "{{{
   for d in a:dirs
     call s:log(s:INFO, printf('s:inject_runtimepath %s', d))
   endfor
-  for plugin_path in s:globpath(join(a:dirs,','), 'plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'ftplugin/**/*.vim')
-        " \ + s:globpath(join(a:dirs,','), 'after/plugin/**/*.vim') + s:globpath(join(a:dirs,','), 'after/ftplugin/**/*.vim')
   let &runtimepath = s:rtp_generate(&runtimepath, a:dirs)
+  let dirs = join(a:dirs,',')
+  for plugin_path in s:globpath(dirs, 'plugin/**/*.vim')
+        \ + (empty(&filetype) ? [] : filter(s:globpath(dirs, 'ftplugin/**/*.vim'), 'v:val =~# "[\\/]" . &filetype'))
     execute 'source' plugin_path
   endfor
 endfunction "}}}
