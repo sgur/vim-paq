@@ -28,6 +28,7 @@ function! s:cmd_import(update, ...) "{{{
     call filter(list, '!get(gh9#repos(v:val), "pinned", 0)')
     echohl Title | echo 'ghq import:' | echohl NONE
     call s:invoke_ghq_import(copy(list))
+    runtime plugin/*.vim
     echohl Title | echo 'git submodule update:' | echohl NONE
     call s:update_submodules(map(copy(list), 's:get_path(v:val)'))
   finally
