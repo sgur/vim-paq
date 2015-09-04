@@ -1,4 +1,4 @@
-vim-gh9
+vim-gpl
 ========
 
 Ghq ベースの Vim プラグインローダーです。
@@ -16,42 +16,45 @@ Requirement
 Install
 -------
 
-### Locate under \[ghq.root\]
+### via ghq
 
-```sh
-ghq get -u --shallow sgur/vim-gh9
-```
+- command-line
 
-### Git clone to ~/.vim
+  ```sh
+  ghq get -u --shallow sgur/vim-gpl
+  ```
 
-```sh
-cd ~/.vim
-git clone https://github.com/sgur/vim-gh9
-```
+- .vimrc
 
-### vimrc example
+  ```vim
+  source ~/Src/github.com/sgur/vim-gpl/gpl.vim
+  ```
 
-```vim
-source ~/.vim/vim-gh9/gh9.vim
+### via git clone
 
-call gh9#begin()
+- command-line
 
-" ...
+  ```sh
+  cd ~/.vim
+  git clone https://github.com/sgur/vim-gpl
+  ```
+- .vimrc
 
-call gh9#end()
-```
+  ```vim
+  source ~/.vim/vim-gpl/gpl.vim
+  ```
 
 ### Detailed vimrc example
 
 ```vim
 filetype off                  " required
 
-source /path/to/gh9.vim
+source /path/to/gpl.vim
 
-call gh9#begin()
+call gpl#begin()
 
-" Let vim-gh9 manage oneself
-Ghq 'sgur/vim-gh9'
+" Let vim-gpl manage oneself
+Ghq 'sgur/vim-gpl'
 
 " Plugin on github
 Ghq 'tpope/vim-fugitive'
@@ -87,7 +90,7 @@ Ghq 'AndrewRadev/inline_edit.vim', {'command' : {'name': 'InlineEdit', 'nargs': 
 Ghq 'Shougo/vimproc.vim', {'pinned': 1}
 
 " All of your Plugins must be added before the following line
-call gh9#end()            " required
+call gpl#end()            " required
 filetype plugin indent on    " required
 " To ignore plugin indent changes, instead use:
 "filetype plugin on
@@ -98,11 +101,11 @@ Usage
 
 ### Update plugins with ghq
 
-`:GhqInstall` により、`ghq import` プラグインのアップデートを実施します。
+`:GplInstall` により、`ghq import` プラグインのアップデートを実施します。
 
-`:GhqInstall!` もしくは `:GhqUpdate` を実行した場合、既にインストールされているプラグインのみを更新します。
+`:GplInstall!` もしくは `:GhqUpdate` を実行した場合、既にインストールされているプラグインのみを更新します。
 
-`:GhqRepos` コマンドを利用することにより、標準出力に管理しているプラグインのリストを出力することができます。
+`:GplRepos` コマンドを利用することにより、標準出力に管理しているプラグインのリストを出力することができます。
 
 ### ghq import subcommand
 
@@ -110,7 +113,7 @@ ghq の subcommand を利用する場合、`.gitconfig` に以下のエントリ
 
 ```
 [ghq "import"]
-	vim = /path/to/vim-gh9/macros/gh9.sh
+	vim = /path/to/vim-gpl/subcommand/gpl.sh
 ```
 (※ windows の場合、環境変数`%PATH%`に`sh.exe`があるパスを追加してください 例: `c:/Program Files/Git/bin` 等)
 

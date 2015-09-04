@@ -1,5 +1,5 @@
-" gh9.vim - Ghq based Plugin Loader
-" Version: 0.3.0
+" gpl.vim - Ghq based Plugin Loader
+" Version: 0.4.0
 " Author: sgur <sgurrr@gmail.com>
 " License: MIT License
 
@@ -8,40 +8,40 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-if exists('g:loaded_gh9') && g:loaded_gh9
+if exists('g:loaded_gpl') && g:loaded_gpl
   finish
 endif
-let g:loaded_gh9 = 1
+let g:loaded_gpl = 1
 
 
 " Interfaces {{{1
-command! -nargs=0 GhqRepos call s:cmd_repo2stdout()
+command! -nargs=0 GplRepos call s:cmd_repo2stdout()
 command! -nargs=0 Helptags  call s:cmd_helptags()
-command! -nargs=0 GhqMessages  call s:message(s:INFO, 's:echo')
+command! -nargs=0 GplMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
 
-function! gh9#begin() "{{{
+function! gpl#begin() "{{{
   call s:cmd_init()
-  command! -buffer -nargs=+ Ghq  call s:cmd_bundle(<args>)
-  command! -buffer -nargs=1 -complete=dir GhqGlob  call s:cmd_globlocal(<args>)
+  command! -buffer -nargs=+ Repo  call s:cmd_bundle(<args>)
+  command! -buffer -nargs=1 -complete=dir RepoGlob  call s:cmd_globlocal(<args>)
 endfunction "}}}
 
-function! gh9#end(...) "{{{
-  delcommand Ghq
-  delcommand GhqGlob
-  command! -nargs=1 Ghq  call s:cmd_force_bundle(<args>)
-  command! -nargs=1 -complete=dir GhqGlob  call s:cmd_force_globlocal(<args>)
+function! gpl#end(...) "{{{
+  delcommand Repo
+  delcommand RepoGlob
+  command! -nargs=1 Repo  call s:cmd_force_bundle(<args>)
+  command! -nargs=1 -complete=dir RepoGlob  call s:cmd_force_globlocal(<args>)
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction "}}}
 
-function! gh9#tap(bundle) "{{{
+function! gpl#tap(bundle) "{{{
   if !&loadplugins | return 0 | endif
   if has_key(s:repos, a:bundle)
     return get(s:repos[a:bundle], 'enabled', 1) && isdirectory(s:get_path(a:bundle))
   endif
 
-  let msg = printf('no repository found on gh9#tap("%s")', a:bundle)
+  let msg = printf('no repository found on gpl#tap("%s")', a:bundle)
   if has('vim_starting')
     call s:log(s:WARNING, msg)
   else
@@ -50,7 +50,7 @@ function! gh9#tap(bundle) "{{{
   return 0
 endfunction "}}}
 
-function! gh9#repos(...) "{{{
+function! gpl#repos(...) "{{{
   return deepcopy(a:0 > 0 ? s:repos[a:1] : s:repos)
 endfunction "}}}
 
@@ -85,7 +85,7 @@ function! s:cmd_apply(config) "{{{
   call map(ftdetects, 's:source_script(v:val)')
   call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
 
-  augroup plugin_gh9
+  augroup plugin_gpl
     autocmd!
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
     autocmd FileType help  nnoremap <silent> <buffer> <C-]>  :<C-u>call <SID>map_tag(v:count)<CR>
@@ -185,7 +185,7 @@ endfunction "}}}
 
 " Autocmd Events {{{2
 function! s:on_vimenter() "{{{
-  autocmd! plugin_gh9 VimEnter *
+  autocmd! plugin_gpl VimEnter *
   call map(get(s:, 'on_vimenter_plugins', []), 's:source_script(v:val)')
   if !empty(s:log)
     call s:message(s:WARNING, 's:echomsg_warning')
