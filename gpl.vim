@@ -302,6 +302,7 @@ endfunction "}}}
 
 function! s:inject_runtimepath(dirs) "{{{
   let &runtimepath = s:rtp_generate(&runtimepath, a:dirs)
+  if has('vim_starting') | return | endif
   let dirs = join(a:dirs,',')
   for plugin_path in s:globpath(dirs, 'plugin/**/*.vim')
         \ + (empty(&filetype) ? [] : (s:globpath(dirs, 'ftplugin/' . &filetype . '/*.vim') + s:globpath(dirs, 'ftplugin/' . &filetype . '_*.vim')))
