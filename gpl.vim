@@ -42,11 +42,7 @@ function! gpl#tap(bundle) "{{{
   endif
 
   let msg = printf('no repository found on gpl#tap("%s")', a:bundle)
-  if has('vim_starting')
-    call s:log(s:WARNING, msg)
-  else
-    echohl WarningMsg | echomsg msg | echohl NONE
-  endif
+  call s:log(s:WARNING, msg)
   return 0
 endfunction "}}}
 
