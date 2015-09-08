@@ -243,10 +243,12 @@ function! s:parse_repos(global) "{{{
       let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
     endif
 
-    let preload = has_key(params, 'preload') ? params.preload : 0
     let triggered = 0
     if has_key(params, 'filetype') || has_key(params, 'autoload')
-      let plugins += preload ? s:get_preloads(path) : []
+      let triggered = 1
+    endif
+    if get(params, 'preload', 0)
+      let plugins += s:get_preloads(path)
       let triggered = 1
     endif
     if has_key(params, 'command')
