@@ -348,7 +348,7 @@ function! s:define_pseudo_commands(commands, name) "{{{
     endif
     let attr = map(filter(copy(command), 'index(["bang", "name", "range"], v:key) == -1'), 'printf("-%s=%s", v:key, v:val)')
     execute 'command!' join(values(attr), ' ') (exists('bang') ? '-bang' : '') (exists('range') ? range : '') cmd
-          \ printf('call s:pseudo_command(%s, %s, %s, %s)', string(a:name), string(cmd), "'<bang>'", "<q-args>")
+          \ printf('call s:pseudo_command(''%s'', ''%s'', ''<bang>'', <q-args>)', a:name, cmd)
   endfor
 endfunction "}}}
 
