@@ -247,8 +247,8 @@ function! s:parse_repos(global) "{{{
     if has_key(params, 'filetype') || has_key(params, 'autoload')
       let triggered = 1
     endif
-    if get(params, 'preload', 0)
-      let plugins += s:get_preloads(path)
+    if get(params, 'plugin', 0)
+      let plugins += s:get_plugins(path)
       let triggered = 1
     endif
     if has_key(params, 'command')
@@ -327,7 +327,7 @@ function! s:glob_after(rtp) "{{{
   return s:globpath(a:rtp, 'after')
 endfunction "}}}
 
-function! s:get_preloads(name) "{{{
+function! s:get_plugins(name) "{{{
   let _ = []
   for plugin_path in s:globpath(a:name, 'plugin/**/*.vim')
     let _ += [plugin_path]
