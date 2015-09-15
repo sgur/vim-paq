@@ -1,5 +1,5 @@
 " gpl.vim - Ghq based Plugin Loader
-" Version: 0.4.0
+" Version: 0.5.0
 " Author: sgur <sgurrr@gmail.com>
 " License: MIT License
 
