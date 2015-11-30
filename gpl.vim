@@ -30,8 +30,8 @@ endfunction "}}}
 function! gpl#end(...) "{{{
   delcommand Repo
   delcommand RepoGlob
-  command! -nargs=1 Repo  call s:cmd_force_bundle(<args>)
-  command! -nargs=1 -complete=dir RepoGlob  call s:cmd_force_globlocal(<args>)
+  command! -nargs=1 GplRepo  call s:cmd_force_bundle(<args>)
+  command! -nargs=1 -complete=dir GplRepoGlob  call s:cmd_force_globlocal(<args>)
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction "}}}
 
