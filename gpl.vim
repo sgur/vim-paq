@@ -191,12 +191,15 @@ endfunction "}}}
 function! s:on_funcundefined(funcname) "{{{
   let dirs = []
   for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'autoload') && !get(v:val[1], '__loaded', 0) && get(v:val[1], 'enabled', 1)")
-    if stridx(a:funcname, params.autoload) == 0
-      call s:log(s:INFO, printf('loading %s on autoload[%s] (%s)', name, params.autoload, a:funcname))
-      let dirs += s:depends(get(params, 'depends', []))
-      let dirs += [s:get_path(name)]
-      let params.__loaded = 1
-    endif
+    for prefix in type(params.autoload) == type([]) ? params.autoload : [params.autoload]
+      if stridx(a:funcname, prefix) == 0
+        call s:log(s:INFO, printf('loading %s on autoload[%s] (%s)', name, prefix, a:funcname))
+        let dirs += s:depends(get(params, 'depends', []))
+        let dirs += [s:get_path(name)]
+        let params.__loaded = 1
+        break
+      endif
+    endfor
   endfor
   call s:inject_runtimepath(dirs)
 endfunction "}}}
