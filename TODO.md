@@ -1,20 +1,18 @@
-# TODO
+TODO
+====
 
-- [ ] `g:gh9_advanced_features` option:
-  - disabled(default): only `filetype`, `enabled`
-  - enabled: `install`, `help`, `autoload`, `preload`, `serialize`
-- [ ] 'pluginonly' option
-- [ ] switch set of runtimepaths for each filetypes on FileType event
+- [ ] JSON import
+- [ ] Per FileType event is defined as GplFileType:{&filetype} event
+  - [ ] Force load via 'doautocmd User GplFileType:{&filetype}'
+- [x] 'plugin' option
+  - [ ] global 'plugin' enbaled parameter
+- [ ] Switch per-filetype rtp on FileType event
   - [ ] general rtp + filetype-specifiec rtp
 - [ ] help file
-- [ ] Move extra-features (autoload, filetype, ...) to separate autoload/../{feature}.vim
-- [ ] Better interface: Only Ghq and GhqBundle (not begin() and end())
-  - [ ] Support both Ghq command and gh9#bundle(dict) (configure at once)
 - [x] lazy loading
   - [x] autoload event trigger (FuncUndefined event)
   - [x] command event trigger (pseudo command)
 - [x] Insturctions
-- [x] 'pinned' flag : skip ghq update
 - [x] 'rtp' flag : add sub-directory to rtp
 - [x] Interfaces as same as Vundle
   - [x] ...#tap() looks better than ...#enabled()
