@@ -1,6 +1,7 @@
 TODO
 ====
 
+- [ ] Inhibit loading if 'depends' are not satisfied
 - [ ] JSON import
 - [ ] Per FileType event is defined as GplFileType:{&filetype} event
   - [ ] Force load via 'doautocmd User GplFileType:{&filetype}'
