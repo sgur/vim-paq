@@ -287,7 +287,7 @@ function! s:find_path(name, prefix) "{{{
   if isdirectory(a:name)
     return a:name
   endif
-  return s:ghq_root . '/' . s:repo_url(a:name, a:prefix)
+  return expand(s:ghq_root . '/' . s:repo_url(a:name, a:prefix))
 endfunction "}}}
 
 function! s:repo_url(name, prefix) "{{{
