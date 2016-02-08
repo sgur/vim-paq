@@ -101,6 +101,10 @@ function! s:cmd_helptags() "{{{
     echon ' ' . fnamemodify(dir, ':h:t')
     execute 'helptags' dir
   endfor
+  if filewritable(expand('$VIMRUNTIME/doc')) == 2 && filewritable(expand('$VIMRUNTIME/doc/tags')) == 1
+    echon ' $VIMRUNTIME/doc'
+    helptags $VIMRUNTIME/doc
+  endif
 endfunction "}}}
 
 function! s:cmd_repo2stdout() "{{{
