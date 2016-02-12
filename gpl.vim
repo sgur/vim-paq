@@ -76,7 +76,7 @@ endfunction "}}}
 function! s:cmd_apply(config) "{{{
   if !&loadplugins | return | endif
 
-  let [dirs, ftdetects, plugins, commands] = s:parse_repos(a:config)
+  let [dirs, ftdetects, plugins, after_plugins, commands] = s:parse_repos(a:config)
   call s:set_runtimepath(dirs)
   call map(ftdetects, 's:source_script(v:val)')
   call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
@@ -89,6 +89,7 @@ function! s:cmd_apply(config) "{{{
     autocmd FuncUndefined *  call s:on_funcundefined(expand('<amatch>'))
     if !empty(plugins)
       let s:on_vimenter_plugins = plugins
+      let s:on_vimenter_after_plugins = after_plugins
       autocmd VimEnter *  call s:on_vimenter()
     endif
   augroup END
@@ -187,6 +188,7 @@ endfunction "}}}
 function! s:on_vimenter() "{{{
   autocmd! plugin_gpl VimEnter *
   call map(get(s:, 'on_vimenter_plugins', []), 's:source_script(v:val)')
+  call map(get(s:, 'on_vimenter_after_plugins', []), 's:source_script(v:val)')
   if !empty(s:log)
     call s:message(s:WARNING, 's:echomsg_warning')
   endif
@@ -238,7 +240,7 @@ function! s:depends(bundles) "{{{
 endfunction "}}}
 
 function! s:parse_repos(global) "{{{
-  let [dirs, ftdetects, plugins, commands] = [[], [], [], []]
+  let [dirs, ftdetects, plugins, afters, commands] = [[], [], [], [], []]
   for [name, params] in items(s:repos)
     call extend(params, a:global, 'keep')
     let path = s:get_path(name)
@@ -256,6 +258,7 @@ function! s:parse_repos(global) "{{{
     endif
     if get(params, 'plugin', 0)
       let plugins += s:get_plugins(path)
+      let afters += s:get_after(path)
       let triggered = 1
     endif
     if has_key(params, 'command')
@@ -267,7 +270,7 @@ function! s:parse_repos(global) "{{{
       let params.__loaded = 1
     endif
   endfor
-  return [dirs, ftdetects, plugins, commands]
+  return [dirs, ftdetects, plugins, afters, commands]
 endfunction "}}}
 
 function! s:find_ghq_root() "{{{
@@ -332,6 +335,14 @@ endfunction "}}}
 
 function! s:glob_after(rtp) "{{{
   return s:globpath(a:rtp, 'after')
+endfunction "}}}
+
+function! s:get_after(name) "{{{
+  let _ = []
+  for plugin_path in s:globpath(a:name, 'after/plugin/**/*.vim')
+    let _ += [plugin_path]
+  endfor
+  return _
 endfunction "}}}
 
 function! s:get_plugins(name) "{{{
