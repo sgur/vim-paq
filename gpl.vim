@@ -30,8 +30,8 @@ endfunction "}}}
 function! gpl#end(...) "{{{
   delcommand Repo
   delcommand RepoGlob
-  command! -nargs=1 GplRepo  call s:cmd_force_bundle(<args>)
-  command! -nargs=1 -complete=dir GplRepoGlob  call s:cmd_force_globlocal(<args>)
+  command! -nargs=1 -bar GplRepo  call s:cmd_force_bundle(<args>)
+  command! -nargs=1 -complete=dir -bar GplRepoGlob  call s:cmd_force_globlocal(<args>)
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction "}}}
 
@@ -127,7 +127,7 @@ function! s:cmd_nop() "{{{
 endfunction "}}}
 
 function! s:cmd_force_bundle(bundle) "{{{
-  if empty(a:bundle) | return | endif
+  if empty(a:bundle) || has_key(s:repos, a:bundle) | return | endif
   let s:repos[a:bundle] = {'__loaded': 1}
   call s:inject_runtimepath([s:get_path(a:bundle)])
   call s:log(s:INFO, printf('loading %s after startup', s:get_path(a:bundle)))
@@ -138,7 +138,7 @@ function! s:cmd_force_globlocal(dir) "{{{
     echohl WarningMsg | echomsg 'Not found:' a:dir | echohl NONE
     return
   endif
-  let dirs = filter(s:globpath(a:dir, '*'), '!s:is_globskip(v:val)')
+  let dirs = filter(s:globpath(a:dir, '*'), '!(s:is_globskip(v:val) || has_key(s:repos, v:val))')
   call s:inject_runtimepath(dirs)
   call map(copy(dirs), 'extend(s:repos, {v:val : {"__loaded": 1}})')
   call map(copy(dirs), 's:log(s:INFO, printf("loading %s after startup", v:val))')
