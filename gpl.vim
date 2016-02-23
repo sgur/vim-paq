@@ -153,7 +153,7 @@ function! s:map_lookup(count) "{{{
     execute 'normal! K'
     return
   endif
-  let cmd = 'help ' . matchstr(getline('.'), '\i*\%' . col('.') . 'c\i*')
+  let cmd = 'help ' . matchstr(getline('.'), '\k*\%' . col('.') . 'c\k*')
   try
     execute cmd
   catch /^Vim\%((\a\+)\)\=:E\%(149\)/
