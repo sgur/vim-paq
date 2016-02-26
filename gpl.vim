@@ -253,12 +253,9 @@ function! s:parse_repos(global) "{{{
       continue
     endif
 
-    if has_key(params, 'filetype')
-      let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
-    endif
-
     let triggered = 0
     if has_key(params, 'filetype') || has_key(params, 'autoload')
+      let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
       let triggered = 1
     endif
     if get(params, 'plugin', 0)
