@@ -84,8 +84,8 @@ function! s:cmd_apply(config) "{{{
   augroup plugin_gpl
     autocmd!
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
-    autocmd FileType help  nnoremap <silent> <buffer> <C-]>  :<C-u>call <SID>map_tag(v:count)<CR>
-    autocmd FileType vim,help nnoremap <silent> <buffer> K  :<C-u>call <SID>map_lookup(v:count)<CR>
+    autocmd FileType help  nested nnoremap <silent> <buffer> <C-]>  :<C-u>call <SID>map_tag(v:count)<CR>
+    autocmd FileType vim,help nested nnoremap <silent> <buffer> K  :<C-u>call <SID>map_lookup(v:count)<CR>
     autocmd FuncUndefined *  call s:on_funcundefined(expand('<amatch>'))
     if !empty(plugins)
       let s:on_vimenter_plugins = plugins
@@ -120,7 +120,12 @@ function! s:cmd_repo2stdout() "{{{
 endfunction "}}}
 
 function! s:cmd_help(term) "{{{
-  call s:try_with_repo_rtps('help ' . a:term)
+  let cmd = printf("help %s", a:term)
+  try
+    execute cmd
+  catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|257\)/
+    call s:try_with_repo_rtps(cmd, v:exception)
+  endtry
 endfunction "}}}
 
 function! s:cmd_nop() "{{{
@@ -157,7 +162,7 @@ function! s:map_lookup(count) "{{{
   try
     execute cmd
   catch /^Vim\%((\a\+)\)\=:E\%(149\)/
-    call s:try_with_repo_rtps(cmd)
+    call s:try_with_repo_rtps(cmd, v:exception)
   endtry
 endfunction "}}}
 
@@ -166,7 +171,7 @@ function! s:map_tag(count) "{{{
   try
     execute cmd
   catch /^Vim\%((\a\+)\)\=:E\%(426\|257\)/
-    call s:try_with_repo_rtps(cmd)
+    call s:try_with_repo_rtps(cmd, v:exception)
   endtry
 endfunction "}}}
 
@@ -423,13 +428,14 @@ function! s:echomsg_warning(time, msg) "{{{
   echohl WarningMsg | execute 'echomsg' string(a:msg) | echohl NONE
 endfunction "}}}
 
-function! s:try_with_repo_rtps(cmd) "{{{
+function! s:try_with_repo_rtps(cmd, exception) "{{{
     let rtp = &rtp
     try
       let &rtp = join(map(values(s:repos), 'v:val.__path'),',')
       execute a:cmd
-      source $VIMRUNTIME/syntax/help.vim " HACK: force enable syntax
-    catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|429\|257\)/
+      " source $VIMRUNTIME/syntax/help.vim " HACK: force enable syntax
+    catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|429\|257\|716\)/
+      echohl ErrorMsg | echomsg matchstr(a:exception, '^[^:]*:\zs.\+') | echohl None
     finally
       let &rtp = rtp
     endtry
