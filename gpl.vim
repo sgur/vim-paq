@@ -50,6 +50,14 @@ function! gpl#repos(...) "{{{
   return deepcopy(a:0 > 0 ? s:repos[a:1] : s:repos)
 endfunction "}}}
 
+function! gpl#json(fname) "{{{
+  call s:cmd_init()
+  let raw = join(readfile(expand(a:fname, 1)), "\n")
+  let decoded = json_decode(raw)
+  let s:repos = decoded
+  call s:cmd_apply({})
+endfunction " }}}
+
 " Internals {{{1
 " Commands {{{2
 function! s:cmd_init() "{{{
@@ -251,7 +259,7 @@ function! s:parse_repos(global) "{{{
   for [name, params] in items(s:repos)
     call extend(params, a:global, 'keep')
     let path = s:get_path(name)
-    if empty(path) || !get(params, 'enabled', 1)
+    if empty(path) || !eval(get(params, 'enabled', 1))
       continue
     endif
 
