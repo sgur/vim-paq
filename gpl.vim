@@ -78,7 +78,9 @@ function! s:cmd_apply(config) "{{{
 
   let [dirs, ftdetects, plugins, after_plugins, commands] = s:parse_repos(a:config)
   call s:set_runtimepath(dirs)
-  call map(ftdetects, 's:source_script(v:val)')
+  augroup filetypedetect
+    call map(ftdetects, 's:source_script(v:val)')
+  augroup END
   call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
 
   augroup plugin_gpl
