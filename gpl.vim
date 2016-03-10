@@ -20,25 +20,13 @@ command! -nargs=0 Helptags  call s:cmd_helptags()
 command! -nargs=0 GplMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
-
-function! gpl#begin() "{{{
-  call s:cmd_init()
-  command! -buffer -nargs=+ Repo  call s:cmd_bundle(<args>)
-  command! -buffer -nargs=1 -complete=dir RepoGlob  call s:cmd_globlocal(<args>)
-endfunction "}}}
-
-function! gpl#end(...) "{{{
-  delcommand Repo
-  delcommand RepoGlob
-  command! -nargs=1 -bar GplRepo  call s:cmd_force_bundle(<args>)
-  command! -nargs=1 -complete=dir -bar GplRepoGlob  call s:cmd_force_globlocal(<args>)
-  call s:cmd_apply(a:0 ? a:1 : {})
-endfunction "}}}
+command! -nargs=1 -bar GplRepo  call s:cmd_force_bundle(<args>)
+command! -nargs=1 -complete=dir -bar GplRepoGlob  call s:cmd_force_globlocal(<args>)
 
 function! gpl#tap(bundle) "{{{
   if !&loadplugins | return 0 | endif
   if has_key(s:repos, a:bundle)
-    return get(s:repos[a:bundle], 'enabled', 1) && isdirectory(s:get_path(a:bundle))
+    return eval(get(s:repos[a:bundle], 'enabled', 1)) && isdirectory(s:get_path(a:bundle))
   endif
 
   let msg = printf('no repository found on gpl#tap("%s")', a:bundle)
@@ -62,23 +50,6 @@ endfunction " }}}
 " Commands {{{2
 function! s:cmd_init() "{{{
   if !exists('s:rtp') | let s:rtp = &runtimepath | endif
-endfunction "}}}
-
-function! s:cmd_bundle(bundle, ...) "{{{
-  if empty(a:bundle) | return | endif
-  let repo = !a:0 ? {} : (!empty(a:1) && type(a:1) == type({}) ? a:1 : {})
-  let s:repos[a:bundle] = repo
-  if get(repo, 'immediately', 0)
-    let &runtimepath .= ',' . s:get_path(a:bundle)
-  endif
-endfunction "}}}
-
-function! s:cmd_globlocal(dir) "{{{
-  if !isdirectory(expand(a:dir))
-    echohl WarningMsg | echomsg 'Not found:' a:dir | echohl NONE
-    return
-  endif
-  call map(filter(s:globpath(a:dir, '*'), '!s:is_globskip(v:val)'), 'extend(s:repos, {v:val : {}})')
 endfunction "}}}
 
 function! s:cmd_apply(config) "{{{
@@ -211,11 +182,10 @@ endfunction "}}}
 
 function! s:on_funcundefined(funcname) "{{{
   let dirs = []
-  for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'autoload') && !get(v:val[1], '__loaded', 0) && get(v:val[1], 'enabled', 1)")
+  for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'autoload') && !get(v:val[1], '__loaded', 0) && eval(get(v:val[1], 'enabled', 1))")
     for prefix in type(params.autoload) == type([]) ? params.autoload : [params.autoload]
       if stridx(a:funcname, prefix) == 0
         call s:log(s:INFO, printf('loading %s on autoload[%s] (%s)', name, prefix, a:funcname))
-        let dirs += s:depends(get(params, 'depends', []))
         let dirs += [s:get_path(name)]
         let params.__loaded = 1
         break
@@ -227,10 +197,9 @@ endfunction "}}}
 
 function! s:on_filetype(filetype) "{{{
   let dirs = []
-  for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'filetype') && !get(v:val[1], '__loaded', 0) && get(v:val[1], 'enabled', 1)")
+  for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'filetype') && !get(v:val[1], '__loaded', 0) && eval(get(v:val[1], 'enabled', 1))")
     if s:included(params.filetype, a:filetype)
       call s:log(s:INFO, printf('loading %s on filetype[%s]', name, a:filetype))
-      let dirs += s:depends(get(params, 'depends', []))
       let dirs += [s:get_path(name)]
       let params.__loaded = 1
     endif
@@ -239,21 +208,6 @@ function! s:on_filetype(filetype) "{{{
 endfunction "}}}
 
 " Repos {{{2
-function! s:depends(bundles) "{{{
-  if empty(a:bundles)
-    return []
-  endif
-  let depends = type(a:bundles) == type([]) ? a:bundles : [a:bundles]
-  let _ = []
-  for depend in depends
-    if !get(s:repos[depend], '__loaded', 0)
-      let _ += [s:get_path(depend)]
-      let s:repos[depend].__loaded = 1
-    endif
-  endfor
-  return _
-endfunction "}}}
-
 function! s:parse_repos(global) "{{{
   let [dirs, ftdetects, plugins, afters, commands] = [[], [], [], [], []]
   for [name, params] in items(s:repos)
