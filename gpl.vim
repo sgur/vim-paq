@@ -35,13 +35,13 @@ function! gpl#end(...) "{{{
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction "}}}
 
-function! gpl#tap(bundle) "{{{
+function! gpl#available(bundle) "{{{
   if !&loadplugins | return 0 | endif
   if has_key(s:repos, a:bundle)
     return get(s:repos[a:bundle], 'enabled', 1) && isdirectory(s:get_path(a:bundle))
   endif
 
-  let msg = printf('no repository found on gpl#tap("%s")', a:bundle)
+  let msg = printf('no repository found on gpl#available("%s")', a:bundle)
   call s:log(s:WARNING, msg)
   return 0
 endfunction "}}}
@@ -85,10 +85,10 @@ function! s:cmd_apply(config) "{{{
 
   augroup plugin_gpl
     autocmd!
+    autocmd FuncUndefined *  nested call s:on_funcundefined(expand('<amatch>'))
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
     autocmd FileType help  nested nnoremap <silent> <buffer> <C-]>  :<C-u>call <SID>map_tag(v:count)<CR>
-    autocmd FileType vim,help nested nnoremap <silent> <buffer> K  :<C-u>call <SID>map_lookup(v:count)<CR>
-    autocmd FuncUndefined *  call s:on_funcundefined(expand('<amatch>'))
+    autocmd FileType vim,help  nested nnoremap <silent> <buffer> K  :<C-u>call <SID>map_lookup(v:count)<CR>
     if !empty(plugins)
       let s:on_vimenter_plugins = plugins
       let s:on_vimenter_after_plugins = after_plugins
@@ -182,7 +182,7 @@ function! s:help_complete(arglead, cmdline, cursorpos) "{{{
   let tags = &l:tags
   try
     if !exists('s:tagdirs')
-      let s:tagdirs = join(filter(map(values(s:repos), 'v:val.__path . "/doc/tags"'), 'filereadable(v:val)'),',')
+      let s:tagdirs = join(filter(map(keys(s:repos), 's:get_path(v:val) . "/doc/tags"'), 'filereadable(v:val)'),',')
     endif
     let &l:tags = s:tagdirs
     return map(taglist(empty(a:arglead)? '.' : a:arglead), 'v:val.name')
@@ -203,31 +203,45 @@ endfunction "}}}
 
 function! s:on_funcundefined(funcname) "{{{
   let dirs = []
+  let bundles = []
   for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'autoload') && !get(v:val[1], '__loaded', 0) && get(v:val[1], 'enabled', 1)")
     for prefix in type(params.autoload) == type([]) ? params.autoload : [params.autoload]
       if stridx(a:funcname, prefix) == 0
         call s:log(s:INFO, printf('loading %s on autoload[%s] (%s)', name, prefix, a:funcname))
         let dirs += s:depends(get(params, 'depends', []))
         let dirs += [s:get_path(name)]
+        let bundles += [name]
         let params.__loaded = 1
         break
       endif
     endfor
   endfor
   call s:inject_runtimepath(dirs)
+  for bundle in bundles
+    if exists('#User#Gpl:' . bundle)
+      execute 'doautocmd <nomodeline> User' 'Gpl:' . bundle
+    endif
+  endfor
 endfunction "}}}
 
 function! s:on_filetype(filetype) "{{{
   let dirs = []
+  let bundles = []
   for [name, params] in filter(items(s:repos), "has_key(v:val[1], 'filetype') && !get(v:val[1], '__loaded', 0) && get(v:val[1], 'enabled', 1)")
     if s:included(params.filetype, a:filetype)
       call s:log(s:INFO, printf('loading %s on filetype[%s]', name, a:filetype))
       let dirs += s:depends(get(params, 'depends', []))
       let dirs += [s:get_path(name)]
+      let bundles += [name]
       let params.__loaded = 1
     endif
   endfor
   call s:inject_runtimepath(dirs)
+  for bundle in bundles
+    if exists('#User#Gpl:' . bundle)
+      execute 'doautocmd <nomodeline> User' 'Gpl:' . bundle
+    endif
+  endfor
 endfunction "}}}
 
 " Repos {{{2
@@ -250,11 +264,14 @@ function! s:parse_repos(global) "{{{
   let [dirs, ftdetects, plugins, afters, commands] = [[], [], [], [], []]
   for [name, params] in items(s:repos)
     call extend(params, a:global, 'keep')
-    let path = s:get_path(name)
-    if empty(path) || !get(params, 'enabled', 1)
+    if !get(params, 'enabled', 1)
       continue
     endif
 
+    let path = s:get_path(name)
+    if empty(path)
+      continue
+    endif
     let triggered = 0
     if has_key(params, 'filetype') || has_key(params, 'autoload')
       let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
@@ -380,6 +397,9 @@ function! s:pseudo_command(name, cmd, bang, args) "{{{
   call s:log(s:INFO, printf('loading %s on command[%s]', a:name, a:cmd))
   call s:inject_runtimepath([s:get_path(a:name)])
   execute a:cmd . a:bang a:args
+  if exists('#User#Gpl:' . a:name)
+    execute 'doautocmd <nomodeline> User' 'Gpl:' . a:name
+  endif
 endfunction "}}}
 
 " Misc {{{2
@@ -431,9 +451,9 @@ endfunction "}}}
 function! s:try_with_repo_rtps(cmd, exception) "{{{
     let rtp = &rtp
     try
-      let &rtp = join(map(values(s:repos), 'v:val.__path'),',')
+      let &rtp = join(map(keys(s:repos), 's:get_path(v:val)'),',')
       execute a:cmd
-      " source $VIMRUNTIME/syntax/help.vim " HACK: force enable syntax
+      source $VIMRUNTIME/syntax/help.vim " HACK: force enable syntax
     catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|429\|257\|716\)/
       echohl ErrorMsg | echomsg matchstr(a:exception, '^[^:]*:\zs.\+') | echohl None
     finally
