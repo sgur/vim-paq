@@ -20,6 +20,8 @@ command! -nargs=0 Helptags  call s:cmd_helptags()
 command! -nargs=0 GplMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
+command! -nargs=1 -complete=customlist,s:list_complete -bar GplEnable
+      \ call s:cmd_enable(<q-args>)
 
 function! gpl#begin() "{{{
   call s:cmd_init()
@@ -151,6 +153,17 @@ function! s:cmd_force_globlocal(dir) "{{{
   call map(copy(dirs), 's:log(s:INFO, printf("loading %s after startup", v:val))')
 endfunction "}}}
 
+function! s:cmd_enable(bundle) abort "{{{
+  if has_key(s:repos, a:bundle) && !get(s:repos[a:bundle], '__loaded', 0) && !s:repos[a:bundle].enabled
+    call s:inject_runtimepath([s:get_path(a:bundle)])
+    let s:repos[a:bundle].enabled = 1
+    let s:repos[a:bundle].__loaded = 1
+    if exists('#User#Gpl:' . a:bundle)
+      execute 'doautocmd <nomodeline> User' 'Gpl:' . a:bundle
+    endif
+  endif
+endfunction "}}}
+
 " Map {{{2
 function! s:map_lookup(count) "{{{
   if &l:keywordprg =~# '^man'
@@ -189,6 +202,10 @@ function! s:help_complete(arglead, cmdline, cursorpos) "{{{
   finally
     let &l:tags = tags
   endtry
+endfunction "}}}
+
+function! s:list_complete(arglead, cmdline, cursorpos) "{{{
+  return filter(keys(s:repos), '!get(s:repos[v:val], "__loaded", 0) && v:val =~ a:arglead')
 endfunction "}}}
 
 " Autocmd Events {{{2
