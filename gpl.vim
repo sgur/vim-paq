@@ -78,12 +78,13 @@ endfunction "}}}
 function! s:cmd_apply(config) "{{{
   if !&loadplugins | return | endif
 
-  let [dirs, ftdetects, plugins, after_plugins, commands] = s:parse_repos(a:config)
+  let [dirs, ftdetects, plugins, after_plugins, commands, maps] = s:parse_repos(a:config)
   call s:set_runtimepath(dirs)
   augroup filetypedetect
     call map(ftdetects, 's:source_script(v:val)')
   augroup END
   call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
+  call map(maps, 's:define_pseudo_maps(v:val[0], v:val[1])')
 
   augroup plugin_gpl
     autocmd!
@@ -278,7 +279,7 @@ function! s:depends(bundles) "{{{
 endfunction "}}}
 
 function! s:parse_repos(global) "{{{
-  let [dirs, ftdetects, plugins, afters, commands] = [[], [], [], [], []]
+  let [dirs, ftdetects, plugins, afters, commands, maps] = [[], [], [], [], [], []]
   for [name, params] in items(s:repos)
     call extend(params, a:global, 'keep')
     if !get(params, 'enabled', 1)
@@ -303,12 +304,16 @@ function! s:parse_repos(global) "{{{
       let commands += [[params.command, name]]
       let triggered = 1
     endif
+    if has_key(params, 'map')
+      let maps += [[params.map, name]]
+      let triggered = 1
+    endif
     if !triggered
       let dirs += [path]
       let params.__loaded = 1
     endif
   endfor
-  return [dirs, ftdetects, plugins, afters, commands]
+  return [dirs, ftdetects, plugins, afters, commands, maps]
 endfunction "}}}
 
 function! s:find_ghq_root() "{{{
@@ -393,6 +398,36 @@ function! s:get_plugins(name) "{{{
 endfunction "}}}
 
 " Command {{{2
+function! s:define_pseudo_maps(maps, name) " {{{
+  for map in type(a:maps) == type([]) ? a:maps : [a:maps]
+    for [mode, map_prefix, key_prefix] in
+          \ [['i', '<C-O>', ''], ['n', '', ''], ['v', '', 'gv'], ['o', '', '']]
+      execute printf(
+            \ '%snoremap <silent> %s %s:<C-U>call <SID>pseudo_map(%s, %s, "%s")<CR>',
+            \ mode, map, map_prefix, string(map), string(a:name), key_prefix)
+    endfor
+  endfor
+endfunction " }}}
+
+function! s:pseudo_map(map, name, prefix) abort "{{{
+  call s:log(s:INFO, printf('loading %s on map[%s]', a:name, a:map))
+  call s:inject_runtimepath([s:get_path(a:name)])
+
+  call feedkeys(a:prefix . substitute(a:map, '^<Plug>', "\<Plug>", '') . s:get_extra_keys())
+endfunction "}}}
+
+function! s:get_extra_keys() abort "{{{
+  let seq = ''
+  while 1
+    let ch = getchar(0)
+    if ch == 0
+      break
+    endif
+    let seq .= nr2char(ch)
+  endwhile
+  return seq
+endfunction "}}}
+
 function! s:define_pseudo_commands(commands, name) "{{{
   let commands = type(a:commands) == type([]) ? a:commands : [a:commands]
   for command in commands
