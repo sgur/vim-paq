@@ -155,7 +155,7 @@ function! s:cmd_force_globlocal(dir) "{{{
 endfunction "}}}
 
 function! s:cmd_enable(bundle) abort "{{{
-  if has_key(s:repos, a:bundle) && !get(s:repos[a:bundle], '__loaded', 0) && !s:repos[a:bundle].enabled
+  if has_key(s:repos, a:bundle) && !get(s:repos[a:bundle], '__loaded', 0) && !get(s:repos[a:bundle], 'enabled', 0)
     call s:inject_runtimepath([s:get_path(a:bundle)])
     let s:repos[a:bundle].enabled = 1
     let s:repos[a:bundle].__loaded = 1
