@@ -455,6 +455,14 @@ function! s:pseudo_command(name, cmd, bang, args) "{{{
 endfunction "}}}
 
 " Misc {{{2
+function! s:normalize_name(bundle) abort "{{{
+  let matches = matchlist(a:bundle, '/\(vim-\)\?\([^.-]\+\)\([.-]vim\)\?$')
+  if empty(matches)
+    return a:bundle
+  endif
+  return matches[2]
+endfunction "}}}
+
 function! s:is_globskip(dir) "{{{
   return has_key(s:repos, a:dir) || a:dir =~# '\~$'
 endfunction "}}}
