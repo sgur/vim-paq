@@ -1,4 +1,4 @@
-" gpl.vim - Ghq based Plugin Loader
+" paq.vim - Ghq based Plugin Loader
 " Version: 0.5.0
 " Author: sgur <sgurrr@gmail.com>
 " License: MIT License
@@ -8,47 +8,52 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-if exists('g:loaded_gpl') && g:loaded_gpl
+if exists('g:loaded_paq') && g:loaded_paq
   finish
 endif
-let g:loaded_gpl = 1
+let g:loaded_paq = 1
+
+
+" let s:sep_idx = stridx(&rtp, ',')
+" let &rtp = &rtp[: s:sep_idx] . expand('<sfile>:h') . &rtp[s:sep_idx :]
 
 
 " Interfaces {{{1
-command! -nargs=0 GplRepos call s:cmd_repo2stdout()
 command! -nargs=0 Helptags  call s:cmd_helptags()
-command! -nargs=0 GplMessages  call s:message(s:INFO, 's:echo')
 command! -complete=customlist,s:help_complete -nargs=* Help
       \ call s:cmd_help(<q-args>)
-command! -nargs=1 -complete=customlist,s:list_complete -bar GplEnable
+
+command! -nargs=0 PaqRepos call s:cmd_repo2stdout()
+command! -nargs=0 PaqMessages  call s:message(s:INFO, 's:echo')
+command! -nargs=1 -complete=customlist,s:list_complete -bar PaqEnable
       \ call s:cmd_enable(<q-args>)
 
-function! gpl#begin() "{{{
+function! paq#begin() "{{{
   call s:cmd_init()
   command! -buffer -nargs=+ Repo  call s:cmd_bundle(<args>)
   command! -buffer -nargs=1 -complete=dir RepoGlob  call s:cmd_globlocal(<args>)
 endfunction "}}}
 
-function! gpl#end(...) "{{{
+function! paq#end(...) "{{{
   delcommand Repo
   delcommand RepoGlob
-  command! -nargs=1 -bar GplRepo  call s:cmd_force_bundle(<args>)
-  command! -nargs=1 -complete=dir -bar GplRepoGlob  call s:cmd_force_globlocal(<args>)
+  command! -nargs=1 -bar PaqRepo  call s:cmd_force_bundle(<args>)
+  command! -nargs=1 -complete=dir -bar PaqRepoGlob  call s:cmd_force_globlocal(<args>)
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction "}}}
 
-function! gpl#available(bundle) "{{{
+function! paq#available(bundle) "{{{
   if !&loadplugins | return 0 | endif
   if has_key(s:repos, a:bundle)
     return get(s:repos[a:bundle], 'enabled', 1) && isdirectory(s:get_path(a:bundle))
   endif
 
-  let msg = printf('no repository found on gpl#available("%s")', a:bundle)
+  let msg = printf('no repository found on paq#available("%s")', a:bundle)
   call s:log(s:WARNING, msg)
   return 0
 endfunction "}}}
 
-function! gpl#repos(...) "{{{
+function! paq#repos(...) "{{{
   return deepcopy(a:0 > 0 ? s:repos[a:1] : s:repos)
 endfunction "}}}
 
@@ -86,7 +91,7 @@ function! s:cmd_apply(config) "{{{
   call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
   call map(maps, 's:define_pseudo_maps(v:val[0], v:val[1])')
 
-  augroup plugin_gpl
+  augroup plugin_paq
     autocmd!
     autocmd FuncUndefined *  nested call s:on_funcundefined(expand('<amatch>'))
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
@@ -159,8 +164,8 @@ function! s:cmd_enable(bundle) abort "{{{
     call s:inject_runtimepath([s:get_path(a:bundle)])
     let s:repos[a:bundle].enabled = 1
     let s:repos[a:bundle].__loaded = 1
-    if exists('#User#Gpl:' . a:bundle)
-      execute 'doautocmd <nomodeline> User' 'Gpl:' . a:bundle
+    if exists('#User#paq:' . a:bundle)
+      execute 'doautocmd <nomodeline> User' 'paq:' . a:bundle
     endif
   endif
 endfunction "}}}
@@ -211,7 +216,7 @@ endfunction "}}}
 
 " Autocmd Events {{{2
 function! s:on_vimenter() "{{{
-  autocmd! plugin_gpl VimEnter *
+  autocmd! plugin_paq VimEnter *
   call map(get(s:, 'on_vimenter_plugins', []), 's:source_script(v:val)')
   call map(get(s:, 'on_vimenter_after_plugins', []), 's:source_script(v:val)')
   if !empty(s:log)
@@ -236,8 +241,8 @@ function! s:on_funcundefined(funcname) "{{{
   endfor
   call s:inject_runtimepath(dirs)
   for bundle in bundles
-    if exists('#User#Gpl:' . bundle)
-      execute 'doautocmd <nomodeline> User' 'Gpl:' . bundle
+    if exists('#User#paq:' . bundle)
+      execute 'doautocmd <nomodeline> User' 'paq:' . bundle
     endif
   endfor
 endfunction "}}}
@@ -256,8 +261,8 @@ function! s:on_filetype(filetype) "{{{
   endfor
   call s:inject_runtimepath(dirs)
   for bundle in bundles
-    if exists('#User#Gpl:' . bundle)
-      execute 'doautocmd <nomodeline> User' 'Gpl:' . bundle
+    if exists('#User#paq:' . bundle)
+      execute 'doautocmd <nomodeline> User' 'paq:' . bundle
     endif
   endfor
 endfunction "}}}
@@ -449,8 +454,8 @@ function! s:pseudo_command(name, cmd, bang, args) "{{{
   call s:log(s:INFO, printf('loading %s on command[%s]', a:name, a:cmd))
   call s:inject_runtimepath([s:get_path(a:name)])
   execute a:cmd . a:bang a:args
-  if exists('#User#Gpl:' . a:name)
-    execute 'doautocmd <nomodeline> User' 'Gpl:' . a:name
+  if exists('#User#paq:' . a:name)
+    execute 'doautocmd <nomodeline> User' 'paq:' . a:name
   endif
 endfunction "}}}
 
