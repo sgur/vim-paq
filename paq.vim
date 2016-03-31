@@ -19,8 +19,8 @@ let &rtp = &rtp[: s:sep_idx] . expand('<sfile>:h') . &rtp[s:sep_idx :]
 
 
 " Interfaces {{{1
-command! -buffer -nargs=+ Paq  call paq#add(<args>)
-command! -buffer -nargs=1 -complete=dir PaqGlob  call paq#glob(<args>)
+command! -bang -nargs=+ Paq  call paq#add(<bang>0, <args>)
+command! -bang -nargs=1 -complete=dir PaqLocal  call paq#glob(<bang>0, <args>)
 
 
 command! -nargs=0 Helptags  call paq#helptags()

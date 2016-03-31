@@ -477,14 +477,20 @@ endfunction "}}}
 
 " Interface {{{1
 
-function! paq#add(bundle, ...) abort
+function! paq#add(immidiate, bundle, ...) abort
   if empty(a:bundle) | return | endif
   let param = !a:0 ? {} : (!empty(a:1) && type(a:1) == type({}) ? a:1 : {})
   call s:cmd_bundle(a:bundle, param)
+  if a:immidiate
+    call s:cmd_apply({})
+  endif
 endfunction
 
-function! paq#glob(dir) abort
+function! paq#glob(immidiate, dir) abort
   call s:cmd_globlocal(a:dir)
+  if a:immidiate
+    call s:cmd_apply({})
+  endif
 endfunction
 
 function! paq#apply(...) abort
