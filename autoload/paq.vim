@@ -11,9 +11,6 @@ endfunction "}}}
 
 function! s:cmd_bundle(bundle, param) "{{{
   let s:repos[a:bundle] = a:param
-  if get(a:param, 'immediately', 0)
-    let &runtimepath .= ',' . s:get_path(a:bundle)
-  endif
 endfunction "}}}
 
 function! s:cmd_globlocal(dir) "{{{
@@ -85,9 +82,8 @@ endfunction "}}}
 function! s:cmd_nop() "{{{
 endfunction "}}}
 
-function! s:cmd_force_bundle(bundle) "{{{
-  if empty(a:bundle) || has_key(s:repos, a:bundle) | return | endif
-  let s:repos[a:bundle] = {'__loaded': 1}
+function! s:cmd_force_bundle(bundle, param) "{{{
+  let s:repos[a:bundle] = extend({'__loaded': 1}, a:param)
   call s:inject_runtimepath([s:get_path(a:bundle)])
   call s:log(s:INFO, printf('loading %s after startup', s:get_path(a:bundle)))
 endfunction "}}}
@@ -480,16 +476,18 @@ endfunction "}}}
 function! paq#add(immidiate, bundle, ...) abort
   if empty(a:bundle) | return | endif
   let param = !a:0 ? {} : (!empty(a:1) && type(a:1) == type({}) ? a:1 : {})
-  call s:cmd_bundle(a:bundle, param)
-  if a:immidiate
-    call s:cmd_apply({})
+  if !a:immidiate
+    call s:cmd_bundle(a:bundle, param)
+  else
+    call s:cmd_force_bundle(a:bundle, param)
   endif
 endfunction
 
 function! paq#glob(immidiate, dir) abort
-  call s:cmd_globlocal(a:dir)
-  if a:immidiate
-    call s:cmd_apply({})
+  if !a:immidiate
+    call s:cmd_globlocal(a:dir)
+  else
+    call s:cmd_force_globlocal(a:dir)
   endif
 endfunction
 
@@ -497,7 +495,7 @@ function! paq#apply(...) abort
   call s:cmd_apply(a:0 ? a:1 : {})
 endfunction
 
-function! paq#available(bundle) "{{{
+function! paq#available(bundle) abort
   if !&loadplugins | return 0 | endif
   if has_key(s:repos, a:bundle)
     return get(s:repos[a:bundle], 'enabled', 1) && isdirectory(s:get_path(a:bundle))
@@ -506,11 +504,11 @@ function! paq#available(bundle) "{{{
   let msg = printf('no repository found on paq#available("%s")', a:bundle)
   call s:log(s:WARNING, msg)
   return 0
-endfunction "}}}
+endfunction
 
-function! paq#repos(...) "{{{
+function! paq#repos(...) abort
   return deepcopy(a:0 > 0 ? s:repos[a:1] : s:repos)
-endfunction "}}}
+endfunction
 
 function! paq#helptags() abort
   call s:cmd_helptags()
