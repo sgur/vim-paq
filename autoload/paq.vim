@@ -46,39 +46,6 @@ function! s:cmd_apply(config) "{{{
   augroup END
 endfunction "}}}
 
-function! s:cmd_helptags() "{{{
-  let dirs = filter(map(keys(s:repos), 'expand(s:get_path(v:val) . "/doc")'), 'isdirectory(v:val)')
-  echohl Title | echo 'helptags:' | echohl NONE
-  for dir in filter(dirs, 'filewritable(v:val) == 2')
-    echon ' ' . fnamemodify(dir, ':h:t')
-    execute 'helptags' dir
-  endfor
-  if filewritable(expand('$VIMRUNTIME/doc')) == 2 && filewritable(expand('$VIMRUNTIME/doc/tags')) == 1
-    echon ' $VIMRUNTIME/doc'
-    helptags $VIMRUNTIME/doc
-  endif
-endfunction "}}}
-
-function! s:cmd_repo2stdout() "{{{
-  new
-  setlocal buftype=nofile
-  let repos = filter(deepcopy(s:repos), '!isdirectory(v:key)')
-  let repo_names = map(items(repos), 'has_key(v:val[1], "host") ? "https://" . s:repo_url(v:val[0], v:val[1].host) : v:val[0]')
-  call append(0, sort(repo_names))
-  normal! Gdd
-  execute '%print'
-  bdelete
-endfunction "}}}
-
-function! s:cmd_help(term) "{{{
-  let cmd = printf("help %s", a:term)
-  try
-    execute cmd
-  catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|257\)/
-    call s:try_with_repo_rtps(cmd, v:exception)
-  endtry
-endfunction "}}}
-
 function! s:cmd_nop() "{{{
 endfunction "}}}
 
@@ -97,17 +64,6 @@ function! s:cmd_force_globlocal(dir) "{{{
   call s:inject_runtimepath(dirs)
   call map(copy(dirs), 'extend(s:repos, {v:val : {"__loaded": 1}})')
   call map(copy(dirs), 's:log(s:INFO, printf("loading %s after startup", v:val))')
-endfunction "}}}
-
-function! s:cmd_enable(bundle) abort "{{{
-  if has_key(s:repos, a:bundle) && !get(s:repos[a:bundle], '__loaded', 0) && !get(s:repos[a:bundle], 'enabled', 0)
-    call s:inject_runtimepath([s:get_path(a:bundle)])
-    let s:repos[a:bundle].enabled = 1
-    let s:repos[a:bundle].__loaded = 1
-    if exists('#User#paq:' . a:bundle)
-      execute 'doautocmd <nomodeline> User' 'paq:' . a:bundle
-    endif
-  endif
 endfunction "}}}
 
 " Map {{{2
@@ -513,15 +469,36 @@ function! paq#repos(...) abort
 endfunction
 
 function! paq#helptags() abort
-  call s:cmd_helptags()
+  let dirs = filter(map(keys(s:repos), 'expand(s:get_path(v:val) . "/doc")'), 'isdirectory(v:val)')
+  echohl Title | echo 'helptags:' | echohl NONE
+  for dir in filter(dirs, 'filewritable(v:val) == 2')
+    echon ' ' . fnamemodify(dir, ':h:t')
+    execute 'helptags' dir
+  endfor
+  if filewritable(expand('$VIMRUNTIME/doc')) == 2 && filewritable(expand('$VIMRUNTIME/doc/tags')) == 1
+    echon ' $VIMRUNTIME/doc'
+    helptags $VIMRUNTIME/doc
+  endif
 endfunction
 
 function! paq#help(term) abort
-  call s:cmd_help(a:term)
+  let cmd = printf("help %s", a:term)
+  try
+    execute cmd
+  catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|257\)/
+    call s:try_with_repo_rtps(cmd, v:exception)
+  endtry
 endfunction
 
-function! paq#enable(term) abort
-  call s:cmd_enable(a:term)
+function! paq#enable(bundle) abort
+  if has_key(s:repos, a:bundle) && !get(s:repos[a:bundle], '__loaded', 0) && !get(s:repos[a:bundle], 'enabled', 0)
+    call s:inject_runtimepath([s:get_path(a:bundle)])
+    let s:repos[a:bundle].enabled = 1
+    let s:repos[a:bundle].__loaded = 1
+    if exists('#User#paq:' . a:bundle)
+      execute 'doautocmd <nomodeline> User' 'paq:' . a:bundle
+    endif
+  endif
 endfunction
 
 function! paq#message() abort
@@ -529,7 +506,14 @@ function! paq#message() abort
 endfunction
 
 function! paq#enumerate() abort
-  call s:cmd_repo2stdout()
+  new
+  setlocal buftype=nofile
+  let repos = filter(deepcopy(s:repos), '!isdirectory(v:key)')
+  let repo_names = map(items(repos), 'has_key(v:val[1], "host") ? "https://" . s:repo_url(v:val[0], v:val[1].host) : v:val[0]')
+  call append(0, sort(repo_names))
+  normal! Gdd
+  execute '%print'
+  bdelete
 endfunction
 
 function! paq#help_complete(arglead, cmdline, cursorpos) abort
