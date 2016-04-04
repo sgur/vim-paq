@@ -26,7 +26,7 @@ command! -bang -nargs=1 -complete=dir PaqLocal  call paq#glob(<bang>0, <args>)
 command! -nargs=0 Helptags  call paq#helptags()
 command! -complete=customlist,paq#help_complete -nargs=* Help  call paq#help(<q-args>)
 
-command! -nargs=0 PaqRepos call paq#repos()
+command! -nargs=0 PaqRepos call paq#enumerate()
 command! -nargs=0 PaqMessages  call paq#message()
 command! -nargs=1 -complete=customlist,s:list_complete -bar PaqEnable
       \ call paq#enable(<q-args>)

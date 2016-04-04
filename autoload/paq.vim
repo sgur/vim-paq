@@ -525,7 +525,7 @@ function! paq#message() abort
   call s:message(s:INFO, 's:echo')
 endfunction
 
-function! paq#repos() abort
+function! paq#enumerate() abort
   call s:cmd_repo2stdout()
 endfunction
 
