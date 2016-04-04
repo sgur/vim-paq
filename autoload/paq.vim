@@ -346,9 +346,9 @@ endfunction "}}}
 function! s:define_pseudo_maps(maps, name) " {{{
   for map in type(a:maps) == type([]) ? a:maps : [a:maps]
     for [mode, map_prefix, key_prefix] in
-          \ [['i', '<C-O>', ''], ['n', '', ''], ['v', '', 'gv'], ['o', '', '']]
+          \ [['i', '<C-o>', ''], ['n', '', ''], ['v', '', 'gv'], ['o', '', '']]
       execute printf(
-            \ '%snoremap <silent> %s %s:<C-U>call <SID>pseudo_map(%s, %s, "%s")<CR>',
+            \ '%snoremap <silent> %s %s:<C-u>call <SID>pseudo_map(%s, %s, "%s")<CR>',
             \ mode, map, map_prefix, string(map), string(a:name), key_prefix)
     endfor
   endfor
@@ -357,8 +357,7 @@ endfunction " }}}
 function! s:pseudo_map(map, name, prefix) abort "{{{
   call s:log(s:INFO, printf('loading %s on map[%s]', a:name, a:map))
   call s:inject_runtimepath([s:get_path(a:name)])
-
-  call feedkeys(a:prefix . substitute(a:map, '^<Plug>', "\<Plug>", '') . s:get_extra_keys())
+  call feedkeys(a:prefix . substitute(a:map, '^<Plug>', "\<Plug>", '') . s:get_extra_keys(), 't')
 endfunction "}}}
 
 function! s:get_extra_keys() abort "{{{
