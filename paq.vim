@@ -28,7 +28,7 @@ command! -complete=customlist,paq#help_complete -nargs=* Help  call paq#help(<q-
 
 command! -nargs=0 PaqRepos call paq#enumerate()
 command! -nargs=0 PaqMessages  call paq#message()
-command! -nargs=1 -complete=customlist,s:list_complete -bar PaqEnable
+command! -nargs=1 -complete=customlist,paq#list_complete -bar PaqEnable
       \ call paq#enable(<q-args>)
 " 1}}}
 
