@@ -5,10 +5,6 @@ scriptencoding utf-8
 " Internal {{{1
 
 " Commands {{{2
-function! s:cmd_init() "{{{
-  if !exists('s:rtp') | let s:rtp = &runtimepath | endif
-endfunction "}}}
-
 function! s:cmd_bundle(bundle, param) "{{{
   let s:repos[a:bundle] = a:param
 endfunction "}}}
@@ -24,25 +20,20 @@ endfunction "}}}
 function! s:cmd_apply(config) "{{{
   if !&loadplugins | return | endif
 
-  let [dirs, ftdetects, plugins, after_plugins, commands, maps] = s:parse_repos(a:config)
-  call s:set_runtimepath(dirs)
-  augroup filetypedetect
-    call map(ftdetects, 's:source_script(v:val)')
-  augroup END
-  call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
-  call map(maps, 's:define_pseudo_maps(v:val[0], v:val[1])')
+  call s:setup_repos(a:config)
 
   augroup plugin_paq
     autocmd!
+    autocmd BufNew *
+          \   augroup filetypedetect
+          \ |   call map(s:find_ftdetects(), 's:source_script(v:val)')
+          \ | augroup END
+          \ | autocmd! plugin_paq BufNew
     autocmd FuncUndefined *  nested call s:on_funcundefined(expand('<amatch>'))
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
     autocmd FileType help  nested nnoremap <silent> <buffer> <C-]>  :<C-u>call <SID>map_tag(v:count)<CR>
     autocmd FileType vim,help  nested nnoremap <silent> <buffer> K  :<C-u>call <SID>map_lookup(v:count)<CR>
-    if !empty(plugins)
-      let s:on_vimenter_plugins = plugins
-      let s:on_vimenter_after_plugins = after_plugins
-      autocmd VimEnter *  call s:on_vimenter()
-    endif
+    autocmd VimEnter *  call s:on_vimenter()
   augroup END
 endfunction "}}}
 
@@ -164,6 +155,10 @@ function! s:on_filetype(filetype) "{{{
 endfunction "}}}
 
 " Repos {{{2
+function! s:backup_original_rtp() "{{{
+  if !exists('s:rtp') | let s:rtp = &runtimepath | endif
+endfunction "}}}
+
 function! s:depends(bundles) "{{{
   if empty(a:bundles)
     return []
@@ -179,8 +174,8 @@ function! s:depends(bundles) "{{{
   return _
 endfunction "}}}
 
-function! s:parse_repos(global) "{{{
-  let [dirs, ftdetects, plugins, afters, commands, maps] = [[], [], [], [], [], []]
+function! s:setup_repos(global) "{{{
+  let [dirs, plugins, afters, commands, maps] = [[], [], [], [], []]
   for [name, params] in items(s:repos)
     call extend(params, a:global, 'keep')
     if !get(params, 'enabled', 1)
@@ -192,10 +187,6 @@ function! s:parse_repos(global) "{{{
       continue
     endif
     let triggered = 0
-    if has_key(params, 'filetype') || has_key(params, 'autoload')
-      let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
-      let triggered = 1
-    endif
     if get(params, 'plugin', 0)
       let plugins += s:get_plugins(path)
       let afters += s:get_after(path)
@@ -209,12 +200,24 @@ function! s:parse_repos(global) "{{{
       let maps += [[params.map, name]]
       let triggered = 1
     endif
-    if !triggered
+    if !triggered && !(has_key(params, 'filetype') || has_key(params, 'autoload'))
       let dirs += [path]
       let params.__loaded = 1
     endif
   endfor
-  return [dirs, ftdetects, plugins, afters, commands, maps]
+  call s:set_runtimepath(dirs)
+  call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
+  call map(maps, 's:define_pseudo_maps(v:val[0], v:val[1])')
+  let s:on_vimenter_plugins = plugins
+  let s:on_vimenter_after_plugins = afters
+endfunction "}}}
+
+function! s:find_ftdetects() abort "{{{
+  let _ = []
+  for name in filter(keys(s:repos), 'has_key(s:repos[v:val], "filetype") || has_key(s:repos[v:val], "autoload")')
+    let _ += s:globpath(s:get_path(name), 'ftdetect/**/*.vim')
+  endfor
+  return _
 endfunction "}}}
 
 function! s:find_ghq_root() "{{{
@@ -534,7 +537,8 @@ let [s:ERROR, s:WARNING, s:INFO] = range(len(s:levels))
 let s:repos = get(s:, 'repos', {})
 let s:log = get(s:, 'log', [])
 
-call s:cmd_init()
+call s:backup_original_rtp()
+
 
 
 " 1}}}
