@@ -128,9 +128,7 @@ function! s:on_funcundefined(funcname) "{{{
   endfor
   call s:inject_runtimepath(dirs)
   for bundle in bundles
-    if exists('#User#paq:' . bundle)
-      execute 'doautocmd <nomodeline> User' 'paq:' . bundle
-    endif
+    call s:do_user_post_hook(bundle)
   endfor
 endfunction "}}}
 
@@ -146,11 +144,9 @@ function! s:on_filetype(filetype) "{{{
       let params.__loaded = 1
     endif
   endfor
-  call s:inject_runtimepath(dirs)
+  call s:inject_runtimepath(dirs, a:filetype)
   for bundle in bundles
-    if exists('#User#paq:' . bundle)
-      execute 'doautocmd <nomodeline> User' 'paq:' . bundle
-    endif
+    call s:do_user_post_hook(bundle)
   endfor
 endfunction "}}}
 
@@ -188,8 +184,8 @@ function! s:setup_repos(global) "{{{
     endif
     let triggered = 0
     if get(params, 'plugin', 0)
-      let plugins += s:get_plugins(path)
-      let afters += s:get_after(path)
+      let plugins += s:glob_scripts(path, 'plugin')
+      let afters += s:glob_scripts(path, 'after/plugin')
       let triggered = 1
     endif
     if has_key(params, 'command')
@@ -205,7 +201,7 @@ function! s:setup_repos(global) "{{{
       let params.__loaded = 1
     endif
   endfor
-  call s:set_runtimepath(dirs)
+  call s:rtp_generate(s:rtp, dirs)
   call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
   call map(maps, 's:define_pseudo_maps(v:val[0], v:val[1])')
   let s:on_vimenter_plugins = plugins
@@ -214,9 +210,8 @@ endfunction "}}}
 
 function! s:find_ftdetects() abort "{{{
   let _ = []
-  for name in filter(keys(s:repos), 'has_key(s:repos[v:val], "filetype") || has_key(s:repos[v:val], "autoload")')
-    let _ += s:globpath(s:get_path(name), 'ftdetect/**/*.vim')
-  endfor
+  call map(filter(keys(s:repos), 'has_key(s:repos[v:val], "filetype") || has_key(s:repos[v:val], "autoload")')
+        \, 'extend(_, s:glob_scripts(s:get_path(v:val), "ftdetect"))')
   return _
 endfunction "}}}
 
@@ -255,55 +250,34 @@ function! s:source_script(path) "{{{
   execute 'source' a:path
 endfunction "}}}
 
-function! s:inject_runtimepath(dirs) "{{{
-  let &runtimepath = s:rtp_generate(&runtimepath, a:dirs)
+function! s:inject_runtimepath(dirs, ...) "{{{
+  call s:rtp_generate(&runtimepath, a:dirs)
   if has('vim_starting') | return | endif
   let dirs = join(a:dirs,',')
-  for plugin_path in s:globpath(dirs, 'plugin/**/*.vim') + s:globpath(dirs, 'ftdetect/**/*.vim')
-        \ + (empty(&filetype) ? [] : s:globpath(dirs, 'ftplugin/' . &filetype . '/*.vim') + s:globpath(dirs, 'ftplugin/' . &filetype . '_*.vim')
-        \             + s:globpath(dirs, 'after/ftplugin/' . &filetype . '/*.vim') + s:globpath(dirs, 'after/ftplugin/' . &filetype . '_*.vim'))
-    execute 'source' plugin_path
-  endfor
-endfunction "}}}
-
-function! s:set_runtimepath(dirs) "{{{
-  if !exists('s:rtp')
-    let s:rtp = &runtimepath
+  let scripts = s:globpath(dirs, 'plugin/**/*.vim') + s:globpath(dirs, 'after/plugin/**/*.vim')
+  if a:0
+    let scripts += s:globpath(dirs, 'ftplugin/' . a:1 . '/*.vim') + s:globpath(dirs, 'ftplugin/' . a:1 . '_*.vim')
+    let scripts += s:globpath(dirs, 'after/ftplugin/' . a:1 . '/*.vim') + s:globpath(dirs, 'after/ftplugin/' . a:1 . '_*.vim')
   endif
-  let &runtimepath = s:rtp_generate(s:rtp, a:dirs)
+  call map(scripts, 's:source_script(v:val)')
 endfunction "}}}
 
 function! s:rtp_generate(rtp, paths) "{{{
-  let after_rtp = s:glob_after(join(a:paths, ','))
+  let after_rtp = s:globpath(join(a:paths, ','), 'after')
   let rtps = split(a:rtp, ',')
   call extend(rtps, a:paths, 1)
   call extend(rtps, after_rtp, -1)
-  return join(rtps, ',')
+  let &runtimepath = join(rtps, ',')
 endfunction "}}}
 
-function! s:glob_after(rtp) "{{{
-  return s:globpath(a:rtp, 'after')
-endfunction "}}}
-
-function! s:get_after(name) "{{{
-  let _ = []
-  for plugin_path in s:globpath(a:name, 'after/plugin/**/*.vim')
-    let _ += [plugin_path]
-  endfor
-  return _
-endfunction "}}}
-
-function! s:get_plugins(name) "{{{
-  let _ = []
-  for plugin_path in s:globpath(a:name, 'plugin/**/*.vim')
-    let _ += [plugin_path]
-  endfor
-  return _
+function! s:glob_scripts(name, path) abort "{{{
+  return s:globpath(a:name, a:path . '/**/*.vim')
 endfunction "}}}
 
 " Command {{{2
 function! s:define_pseudo_maps(maps, name) " {{{
   for map in type(a:maps) == type([]) ? a:maps : [a:maps]
+    if !empty(mapcheck(map)) | continue | endif
     for [mode, map_prefix, key_prefix] in
           \ [['i', '<C-o>', ''], ['n', '', ''], ['v', '', 'gv'], ['o', '', '']]
       execute printf(
@@ -315,11 +289,11 @@ endfunction " }}}
 
 function! s:pseudo_map(map, name, prefix) abort "{{{
   call s:log(s:INFO, printf('loading %s on map[%s]', a:name, a:map))
+  execute 'silent! unmap' a:map
   call s:inject_runtimepath([s:get_path(a:name)])
-  if exists('#User#paq:' . a:name)
-    execute 'doautocmd <nomodeline> User' 'paq:' . a:name
-  endif
-  call feedkeys(a:prefix . substitute(a:map, '^<Plug>', "\<Plug>", '') . s:get_extra_keys(), 't')
+  call s:do_user_post_hook(a:name)
+  call s:log(s:INFO, printf('map: %s to %s', a:map, maparg(a:map)))
+  call feedkeys(a:prefix . substitute(a:map, '^<Plug>', "\<Plug>", '') . s:get_extra_keys())
 endfunction "}}}
 
 function! s:get_extra_keys() abort "{{{
@@ -355,12 +329,26 @@ function! s:pseudo_command(name, cmd, bang, args) "{{{
   call s:log(s:INFO, printf('loading %s on command[%s]', a:name, a:cmd))
   call s:inject_runtimepath([s:get_path(a:name)])
   execute a:cmd . a:bang a:args
-  if exists('#User#paq:' . a:name)
-    execute 'doautocmd <nomodeline> User' 'paq:' . a:name
-  endif
+  call s:do_user_post_hook(a:name)
 endfunction "}}}
 
 " Misc {{{2
+function! s:do_user_post_hook(bundle) abort "{{{
+  call s:do_user_hook(a:bundle, [a:bundle, a:bundle . ':post'])
+endfunction "}}}
+
+function! s:do_user_pre_hook(bundle) abort "{{{
+  call s:do_user_hook(a:bundle, [a:bundle . ':pre'])
+endfunction "}}}
+
+function! s:do_user_hook(bundle, events) abort "{{{
+  for event in a:events
+    if exists('#User#' . event)
+      execute 'doautocmd User' event
+    endif
+  endfor
+endfunction "}}}
+
 function! s:normalize_name(bundle) abort "{{{
   let matches = matchlist(a:bundle, '/\(vim-\)\?\([^.-]\+\)\([.-]vim\)\?$')
   if empty(matches)
@@ -498,8 +486,8 @@ function! paq#enable(bundle) abort
     call s:inject_runtimepath([s:get_path(a:bundle)])
     let s:repos[a:bundle].enabled = 1
     let s:repos[a:bundle].__loaded = 1
-    if exists('#User#paq:' . a:bundle)
-      execute 'doautocmd <nomodeline> User' 'paq:' . a:bundle
+    if exists('#User#' . a:bundle)
+      execute 'doautocmd User' a:bundle
     endif
   endif
 endfunction
