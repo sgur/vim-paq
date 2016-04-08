@@ -171,7 +171,7 @@ function! s:depends(bundles) "{{{
 endfunction "}}}
 
 function! s:setup_repos(global) "{{{
-  let [dirs, plugins, afters, commands, maps] = [[], [], [], [], []]
+  let [dirs, plugins, afters] = [[], [], []]
   for [name, params] in items(s:repos)
     call extend(params, a:global, 'keep')
     if !get(params, 'enabled', 1)
@@ -189,11 +189,11 @@ function! s:setup_repos(global) "{{{
       let triggered = 1
     endif
     if has_key(params, 'command')
-      let commands += [[params.command, name]]
+      call s:define_pseudo_commands(params.command, name)
       let triggered = 1
     endif
     if has_key(params, 'map')
-      let maps += [[params.map, name]]
+      call s:define_pseudo_maps(params.map, name)
       let triggered = 1
     endif
     if !triggered && !(has_key(params, 'filetype') || has_key(params, 'autoload'))
@@ -202,8 +202,6 @@ function! s:setup_repos(global) "{{{
     endif
   endfor
   call s:rtp_generate(s:rtp, dirs)
-  call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
-  call map(maps, 's:define_pseudo_maps(v:val[0], v:val[1])')
   let s:on_vimenter_plugins = plugins
   let s:on_vimenter_after_plugins = afters
 endfunction "}}}
@@ -279,7 +277,7 @@ function! s:define_pseudo_maps(maps, name) " {{{
   for map in type(a:maps) == type([]) ? a:maps : [a:maps]
     if !empty(mapcheck(map)) | continue | endif
     for [mode, map_prefix, key_prefix] in
-          \ [['i', '<C-o>', ''], ['n', '', ''], ['v', '', 'gv'], ['o', '', '']]
+          \ [['i', '<C-o>', ''], ['n', '', ''], ['v', '', 'gv'], ['x', '', 'gv'], ['o', '', '']]
       execute printf(
             \ '%snoremap <silent> %s %s:<C-u>call <SID>pseudo_map(%s, %s, "%s")<CR>',
             \ mode, map, map_prefix, string(map), string(a:name), key_prefix)
@@ -290,9 +288,9 @@ endfunction " }}}
 function! s:pseudo_map(map, name, prefix) abort "{{{
   call s:log(s:INFO, printf('loading %s on map[%s]', a:name, a:map))
   execute 'silent! unmap' a:map
+  execute 'silent! xunmap' a:map
   call s:inject_runtimepath([s:get_path(a:name)])
   call s:do_user_post_hook(a:name)
-  call s:log(s:INFO, printf('map: %s to %s', a:map, maparg(a:map)))
   call feedkeys(a:prefix . substitute(a:map, '^<Plug>', "\<Plug>", '') . s:get_extra_keys())
 endfunction "}}}
 
