@@ -192,10 +192,11 @@ function! s:setup_repos(global) "{{{
       call s:define_pseudo_commands(params.command, name)
       let triggered = 1
     endif
-    if has_key(params, 'map')
-      call s:define_pseudo_maps(params.map, name)
+    let maps = filter(keys(params), 'v:val =~ "^.\\+-map$"')
+    for mapping in maps
+      call s:define_pseudo_maps(matchstr(mapping, '^.\+\ze-map$'), params[mapping], name)
       let triggered = 1
-    endif
+    endfor
     if !triggered && !(has_key(params, 'filetype') || has_key(params, 'autoload'))
       let dirs += [path]
       let params.__loaded = 1
@@ -273,14 +274,14 @@ function! s:glob_scripts(name, path) abort "{{{
 endfunction "}}}
 
 " Command {{{2
-function! s:define_pseudo_maps(maps, name) " {{{
+function! s:define_pseudo_maps(map_name, maps, name) " {{{
   for map in type(a:maps) == type([]) ? a:maps : [a:maps]
     if !empty(mapcheck(map)) | continue | endif
-    for [mode, map_prefix, key_prefix] in
-          \ [['i', '<C-o>', ''], ['n', '', ''], ['v', '', 'gv'], ['x', '', 'gv'], ['o', '', '']]
+    for mode in split(a:map_name, '\zs')
+      let prefix = s:map_prefixes[mode]
       execute printf(
             \ '%snoremap <silent> %s %s:<C-u>call <SID>pseudo_map(%s, %s, "%s")<CR>',
-            \ mode, map, map_prefix, string(map), string(a:name), key_prefix)
+            \ mode, map, prefix.map, string(map), string(a:name), prefix.key)
     endfor
   endfor
 endfunction " }}}
@@ -522,6 +523,15 @@ let [s:ERROR, s:WARNING, s:INFO] = range(len(s:levels))
 
 let s:repos = get(s:, 'repos', {})
 let s:log = get(s:, 'log', [])
+
+let s:map_prefixes = {
+      \   'i': {'map': '<C-o>', 'key': ''}
+      \ , 'n': {'map': '', 'key': ''}
+      \ , 'v': {'map': '', 'key': 'gv'}
+      \ , 'x': {'map': '', 'key': 'gv'}
+      \ , 'o': {'map': '', 'key': ''}
+      \ }
+
 
 call s:backup_original_rtp()
 
