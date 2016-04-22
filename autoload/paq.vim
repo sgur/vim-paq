@@ -288,8 +288,8 @@ endfunction " }}}
 
 function! s:pseudo_map(map, name, prefix) abort "{{{
   call s:log(s:INFO, printf('loading %s on map[%s]', a:name, a:map))
-  execute 'silent! unmap' a:map
-  execute 'silent! xunmap' a:map
+  " execute 'silent! unmap' a:map
+  " execute 'silent! xunmap' a:map
   call s:inject_runtimepath([s:get_path(a:name)])
   call s:do_user_post_hook(a:name)
   call feedkeys(a:prefix . substitute(a:map, '^<Plug>', "\<Plug>", '') . s:get_extra_keys())
