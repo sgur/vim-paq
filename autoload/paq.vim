@@ -1,70 +1,12 @@
-" gpl.vim - Ghq based Plugin Loader
-" Version: 0.5.0
-" Author: sgur <sgurrr@gmail.com>
-" License: MIT License
-
 scriptencoding utf-8
 
-let s:save_cpo = &cpo
-set cpo&vim
-
-if exists('g:loaded_gpl') && g:loaded_gpl
-  finish
-endif
-let g:loaded_gpl = 1
 
 
-" Interfaces {{{1
-command! -nargs=0 GplRepos call s:cmd_repo2stdout()
-command! -nargs=0 Helptags  call s:cmd_helptags()
-command! -nargs=0 GplMessages  call s:message(s:INFO, 's:echo')
-command! -complete=customlist,s:help_complete -nargs=* Help
-      \ call s:cmd_help(<q-args>)
-command! -nargs=1 -complete=customlist,s:list_complete -bar GplEnable
-      \ call s:cmd_enable(<q-args>)
+" Internal {{{1
 
-function! gpl#begin() "{{{
-  call s:cmd_init()
-  command! -buffer -nargs=+ Repo  call s:cmd_bundle(<args>)
-  command! -buffer -nargs=1 -complete=dir RepoGlob  call s:cmd_globlocal(<args>)
-endfunction "}}}
-
-function! gpl#end(...) "{{{
-  delcommand Repo
-  delcommand RepoGlob
-  command! -nargs=1 -bar GplRepo  call s:cmd_force_bundle(<args>)
-  command! -nargs=1 -complete=dir -bar GplRepoGlob  call s:cmd_force_globlocal(<args>)
-  call s:cmd_apply(a:0 ? a:1 : {})
-endfunction "}}}
-
-function! gpl#available(bundle) "{{{
-  if !&loadplugins | return 0 | endif
-  if has_key(s:repos, a:bundle)
-    return get(s:repos[a:bundle], 'enabled', 1) && isdirectory(s:get_path(a:bundle))
-  endif
-
-  let msg = printf('no repository found on gpl#available("%s")', a:bundle)
-  call s:log(s:WARNING, msg)
-  return 0
-endfunction "}}}
-
-function! gpl#repos(...) "{{{
-  return deepcopy(a:0 > 0 ? s:repos[a:1] : s:repos)
-endfunction "}}}
-
-" Internals {{{1
 " Commands {{{2
-function! s:cmd_init() "{{{
-  if !exists('s:rtp') | let s:rtp = &runtimepath | endif
-endfunction "}}}
-
-function! s:cmd_bundle(bundle, ...) "{{{
-  if empty(a:bundle) | return | endif
-  let repo = !a:0 ? {} : (!empty(a:1) && type(a:1) == type({}) ? a:1 : {})
-  let s:repos[a:bundle] = repo
-  if get(repo, 'immediately', 0)
-    let &runtimepath .= ',' . s:get_path(a:bundle)
-  endif
+function! s:cmd_bundle(bundle, param) "{{{
+  let s:repos[a:bundle] = a:param
 endfunction "}}}
 
 function! s:cmd_globlocal(dir) "{{{
@@ -78,67 +20,28 @@ endfunction "}}}
 function! s:cmd_apply(config) "{{{
   if !&loadplugins | return | endif
 
-  let [dirs, ftdetects, plugins, after_plugins, commands, maps] = s:parse_repos(a:config)
-  call s:set_runtimepath(dirs)
-  augroup filetypedetect
-    call map(ftdetects, 's:source_script(v:val)')
-  augroup END
-  call map(commands, 's:define_pseudo_commands(v:val[0], v:val[1])')
-  call map(maps, 's:define_pseudo_maps(v:val[0], v:val[1])')
+  call s:setup_repos(a:config)
 
-  augroup plugin_gpl
+  augroup plugin_paq
     autocmd!
+    autocmd BufNew *
+          \   augroup filetypedetect
+          \ |   call map(s:find_ftdetects(), 's:source_script(v:val)')
+          \ | augroup END
+          \ | autocmd! plugin_paq BufNew
     autocmd FuncUndefined *  nested call s:on_funcundefined(expand('<amatch>'))
     autocmd FileType *  call s:on_filetype(expand('<amatch>'))
     autocmd FileType help  nested nnoremap <silent> <buffer> <C-]>  :<C-u>call <SID>map_tag(v:count)<CR>
     autocmd FileType vim,help  nested nnoremap <silent> <buffer> K  :<C-u>call <SID>map_lookup(v:count)<CR>
-    if !empty(plugins)
-      let s:on_vimenter_plugins = plugins
-      let s:on_vimenter_after_plugins = after_plugins
-      autocmd VimEnter *  call s:on_vimenter()
-    endif
+    autocmd VimEnter *  call s:on_vimenter()
   augroup END
-endfunction "}}}
-
-function! s:cmd_helptags() "{{{
-  let dirs = filter(map(keys(s:repos), 'expand(s:get_path(v:val) . "/doc")'), 'isdirectory(v:val)')
-  echohl Title | echo 'helptags:' | echohl NONE
-  for dir in filter(dirs, 'filewritable(v:val) == 2')
-    echon ' ' . fnamemodify(dir, ':h:t')
-    execute 'helptags' dir
-  endfor
-  if filewritable(expand('$VIMRUNTIME/doc')) == 2 && filewritable(expand('$VIMRUNTIME/doc/tags')) == 1
-    echon ' $VIMRUNTIME/doc'
-    helptags $VIMRUNTIME/doc
-  endif
-endfunction "}}}
-
-function! s:cmd_repo2stdout() "{{{
-  new
-  setlocal buftype=nofile
-  let repos = filter(deepcopy(s:repos), '!isdirectory(v:key)')
-  let repo_names = map(items(repos), 'has_key(v:val[1], "host") ? "https://" . s:repo_url(v:val[0], v:val[1].host) : v:val[0]')
-  call append(0, sort(repo_names))
-  normal! Gdd
-  execute '%print'
-  bdelete
-endfunction "}}}
-
-function! s:cmd_help(term) "{{{
-  let cmd = printf("help %s", a:term)
-  try
-    execute cmd
-  catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|257\)/
-    call s:try_with_repo_rtps(cmd, v:exception)
-  endtry
 endfunction "}}}
 
 function! s:cmd_nop() "{{{
 endfunction "}}}
 
-function! s:cmd_force_bundle(bundle) "{{{
-  if empty(a:bundle) || has_key(s:repos, a:bundle) | return | endif
-  let s:repos[a:bundle] = {'__loaded': 1}
+function! s:cmd_force_bundle(bundle, param) "{{{
+  let s:repos[a:bundle] = extend({'__loaded': 1}, a:param)
   call s:inject_runtimepath([s:get_path(a:bundle)])
   call s:log(s:INFO, printf('loading %s after startup', s:get_path(a:bundle)))
 endfunction "}}}
@@ -152,17 +55,6 @@ function! s:cmd_force_globlocal(dir) "{{{
   call s:inject_runtimepath(dirs)
   call map(copy(dirs), 'extend(s:repos, {v:val : {"__loaded": 1}})')
   call map(copy(dirs), 's:log(s:INFO, printf("loading %s after startup", v:val))')
-endfunction "}}}
-
-function! s:cmd_enable(bundle) abort "{{{
-  if has_key(s:repos, a:bundle) && !get(s:repos[a:bundle], '__loaded', 0) && !get(s:repos[a:bundle], 'enabled', 0)
-    call s:inject_runtimepath([s:get_path(a:bundle)])
-    let s:repos[a:bundle].enabled = 1
-    let s:repos[a:bundle].__loaded = 1
-    if exists('#User#Gpl:' . a:bundle)
-      execute 'doautocmd <nomodeline> User' 'Gpl:' . a:bundle
-    endif
-  endif
 endfunction "}}}
 
 " Map {{{2
@@ -192,26 +84,26 @@ function! s:map_tag(count) "{{{
 endfunction "}}}
 
 " Completion {{{2
-function! s:help_complete(arglead, cmdline, cursorpos) "{{{
+function! s:help_complete(term) "{{{
   let tags = &l:tags
   try
     if !exists('s:tagdirs')
       let s:tagdirs = join(filter(map(keys(s:repos), 's:get_path(v:val) . "/doc/tags"'), 'filereadable(v:val)'),',')
     endif
     let &l:tags = s:tagdirs
-    return map(taglist(empty(a:arglead)? '.' : a:arglead), 'v:val.name')
+    return map(taglist(empty(a:term)? '.' : a:term), 'v:val.name')
   finally
     let &l:tags = tags
   endtry
 endfunction "}}}
 
-function! s:list_complete(arglead, cmdline, cursorpos) "{{{
-  return filter(keys(s:repos), '!get(s:repos[v:val], "__loaded", 0) && v:val =~ a:arglead')
+function! s:list_complete(term) "{{{
+  return filter(keys(s:repos), '!get(s:repos[v:val], "__loaded", 0) && v:val =~ a:term')
 endfunction "}}}
 
 " Autocmd Events {{{2
 function! s:on_vimenter() "{{{
-  autocmd! plugin_gpl VimEnter *
+  autocmd! plugin_paq VimEnter *
   call map(get(s:, 'on_vimenter_plugins', []), 's:source_script(v:val)')
   call map(get(s:, 'on_vimenter_after_plugins', []), 's:source_script(v:val)')
   if !empty(s:log)
@@ -236,9 +128,7 @@ function! s:on_funcundefined(funcname) "{{{
   endfor
   call s:inject_runtimepath(dirs)
   for bundle in bundles
-    if exists('#User#Gpl:' . bundle)
-      execute 'doautocmd <nomodeline> User' 'Gpl:' . bundle
-    endif
+    call s:do_user_post_hook(bundle)
   endfor
 endfunction "}}}
 
@@ -254,15 +144,17 @@ function! s:on_filetype(filetype) "{{{
       let params.__loaded = 1
     endif
   endfor
-  call s:inject_runtimepath(dirs)
+  call s:inject_runtimepath(dirs, a:filetype)
   for bundle in bundles
-    if exists('#User#Gpl:' . bundle)
-      execute 'doautocmd <nomodeline> User' 'Gpl:' . bundle
-    endif
+    call s:do_user_post_hook(bundle)
   endfor
 endfunction "}}}
 
 " Repos {{{2
+function! s:backup_original_rtp() "{{{
+  if !exists('s:rtp') | let s:rtp = &runtimepath | endif
+endfunction "}}}
+
 function! s:depends(bundles) "{{{
   if empty(a:bundles)
     return []
@@ -278,8 +170,8 @@ function! s:depends(bundles) "{{{
   return _
 endfunction "}}}
 
-function! s:parse_repos(global) "{{{
-  let [dirs, ftdetects, plugins, afters, commands, maps] = [[], [], [], [], [], []]
+function! s:setup_repos(global) "{{{
+  let [dirs, plugins, afters] = [[], [], []]
   for [name, params] in items(s:repos)
     call extend(params, a:global, 'keep')
     if !get(params, 'enabled', 1)
@@ -291,29 +183,35 @@ function! s:parse_repos(global) "{{{
       continue
     endif
     let triggered = 0
-    if has_key(params, 'filetype') || has_key(params, 'autoload')
-      let ftdetects += s:globpath(path, 'ftdetect/**/*.vim')
-      let triggered = 1
-    endif
     if get(params, 'plugin', 0)
-      let plugins += s:get_plugins(path)
-      let afters += s:get_after(path)
+      let plugins += s:glob_scripts(path, 'plugin')
+      let afters += s:glob_scripts(path, 'after/plugin')
       let triggered = 1
     endif
     if has_key(params, 'command')
-      let commands += [[params.command, name]]
+      call s:define_pseudo_commands(params.command, name)
       let triggered = 1
     endif
-    if has_key(params, 'map')
-      let maps += [[params.map, name]]
+    let maps = filter(keys(params), 'v:val =~ "^.\\+-map$"')
+    for mapping in maps
+      call s:define_pseudo_maps(matchstr(mapping, '^.\+\ze-map$'), params[mapping], name)
       let triggered = 1
-    endif
-    if !triggered
+    endfor
+    if !triggered && !(has_key(params, 'filetype') || has_key(params, 'autoload'))
       let dirs += [path]
       let params.__loaded = 1
     endif
   endfor
-  return [dirs, ftdetects, plugins, afters, commands, maps]
+  call s:rtp_generate(s:rtp, dirs)
+  let s:on_vimenter_plugins = plugins
+  let s:on_vimenter_after_plugins = afters
+endfunction "}}}
+
+function! s:find_ftdetects() abort "{{{
+  let _ = []
+  call map(filter(keys(s:repos), 'has_key(s:repos[v:val], "filetype") || has_key(s:repos[v:val], "autoload")')
+        \, 'extend(_, s:glob_scripts(s:get_path(v:val), "ftdetect"))')
+  return _
 endfunction "}}}
 
 function! s:find_ghq_root() "{{{
@@ -351,68 +249,49 @@ function! s:source_script(path) "{{{
   execute 'source' a:path
 endfunction "}}}
 
-function! s:inject_runtimepath(dirs) "{{{
-  let &runtimepath = s:rtp_generate(&runtimepath, a:dirs)
+function! s:inject_runtimepath(dirs, ...) "{{{
+  call s:rtp_generate(&runtimepath, a:dirs)
   if has('vim_starting') | return | endif
   let dirs = join(a:dirs,',')
-  for plugin_path in s:globpath(dirs, 'plugin/**/*.vim') + s:globpath(dirs, 'ftdetect/**/*.vim')
-        \ + (empty(&filetype) ? [] : s:globpath(dirs, 'ftplugin/' . &filetype . '/*.vim') + s:globpath(dirs, 'ftplugin/' . &filetype . '_*.vim')
-        \             + s:globpath(dirs, 'after/ftplugin/' . &filetype . '/*.vim') + s:globpath(dirs, 'after/ftplugin/' . &filetype . '_*.vim'))
-    execute 'source' plugin_path
-  endfor
-endfunction "}}}
-
-function! s:set_runtimepath(dirs) "{{{
-  if !exists('s:rtp')
-    let s:rtp = &runtimepath
+  let scripts = s:globpath(dirs, 'plugin/**/*.vim') + s:globpath(dirs, 'after/plugin/**/*.vim')
+  if a:0
+    let scripts += s:globpath(dirs, 'ftplugin/' . a:1 . '/*.vim') + s:globpath(dirs, 'ftplugin/' . a:1 . '_*.vim')
+    let scripts += s:globpath(dirs, 'after/ftplugin/' . a:1 . '/*.vim') + s:globpath(dirs, 'after/ftplugin/' . a:1 . '_*.vim')
   endif
-  let &runtimepath = s:rtp_generate(s:rtp, a:dirs)
+  call map(scripts, 's:source_script(v:val)')
 endfunction "}}}
 
 function! s:rtp_generate(rtp, paths) "{{{
-  let after_rtp = s:glob_after(join(a:paths, ','))
+  let after_rtp = s:globpath(join(a:paths, ','), 'after')
   let rtps = split(a:rtp, ',')
   call extend(rtps, a:paths, 1)
   call extend(rtps, after_rtp, -1)
-  return join(rtps, ',')
+  let &runtimepath = join(rtps, ',')
 endfunction "}}}
 
-function! s:glob_after(rtp) "{{{
-  return s:globpath(a:rtp, 'after')
-endfunction "}}}
-
-function! s:get_after(name) "{{{
-  let _ = []
-  for plugin_path in s:globpath(a:name, 'after/plugin/**/*.vim')
-    let _ += [plugin_path]
-  endfor
-  return _
-endfunction "}}}
-
-function! s:get_plugins(name) "{{{
-  let _ = []
-  for plugin_path in s:globpath(a:name, 'plugin/**/*.vim')
-    let _ += [plugin_path]
-  endfor
-  return _
+function! s:glob_scripts(name, path) abort "{{{
+  return s:globpath(a:name, a:path . '/**/*.vim')
 endfunction "}}}
 
 " Command {{{2
-function! s:define_pseudo_maps(maps, name) " {{{
+function! s:define_pseudo_maps(map_name, maps, name) " {{{
   for map in type(a:maps) == type([]) ? a:maps : [a:maps]
-    for [mode, map_prefix, key_prefix] in
-          \ [['i', '<C-O>', ''], ['n', '', ''], ['v', '', 'gv'], ['o', '', '']]
+    if !empty(mapcheck(map)) | continue | endif
+    for mode in split(a:map_name, '\zs')
+      let prefix = s:map_prefixes[mode]
       execute printf(
-            \ '%snoremap <silent> %s %s:<C-U>call <SID>pseudo_map(%s, %s, "%s")<CR>',
-            \ mode, map, map_prefix, string(map), string(a:name), key_prefix)
+            \ '%snoremap <silent> %s %s:<C-u>call <SID>pseudo_map(%s, %s, "%s")<CR>',
+            \ mode, map, prefix.map, string(map), string(a:name), prefix.key)
     endfor
   endfor
 endfunction " }}}
 
 function! s:pseudo_map(map, name, prefix) abort "{{{
   call s:log(s:INFO, printf('loading %s on map[%s]', a:name, a:map))
+  " execute 'silent! unmap' a:map
+  " execute 'silent! xunmap' a:map
   call s:inject_runtimepath([s:get_path(a:name)])
-
+  call s:do_user_post_hook(a:name)
   call feedkeys(a:prefix . substitute(a:map, '^<Plug>', "\<Plug>", '') . s:get_extra_keys())
 endfunction "}}}
 
@@ -449,12 +328,26 @@ function! s:pseudo_command(name, cmd, bang, args) "{{{
   call s:log(s:INFO, printf('loading %s on command[%s]', a:name, a:cmd))
   call s:inject_runtimepath([s:get_path(a:name)])
   execute a:cmd . a:bang a:args
-  if exists('#User#Gpl:' . a:name)
-    execute 'doautocmd <nomodeline> User' 'Gpl:' . a:name
-  endif
+  call s:do_user_post_hook(a:name)
 endfunction "}}}
 
 " Misc {{{2
+function! s:do_user_post_hook(bundle) abort "{{{
+  call s:do_user_hook(a:bundle, [a:bundle, a:bundle . ':post'])
+endfunction "}}}
+
+function! s:do_user_pre_hook(bundle) abort "{{{
+  call s:do_user_hook(a:bundle, [a:bundle . ':pre'])
+endfunction "}}}
+
+function! s:do_user_hook(bundle, events) abort "{{{
+  for event in a:events
+    if exists('#User#' . event)
+      execute 'doautocmd User' event
+    endif
+  endfor
+endfunction "}}}
+
 function! s:normalize_name(bundle) abort "{{{
   let matches = matchlist(a:bundle, '/\(vim-\)\?\([^.-]\+\)\([.-]vim\)\?$')
   if empty(matches)
@@ -520,22 +413,128 @@ function! s:try_with_repo_rtps(cmd, exception) "{{{
       let &rtp = rtp
     endtry
 endfunction "}}}
-" 2}}}
+
+function! s:lvl2str(level) "{{{
+  return s:levels[a:level]
+endfunction "}}}
+
+
+" Interface {{{1
+
+function! paq#add(immidiate, bundle, ...) abort
+  if empty(a:bundle) | return | endif
+  let param = !a:0 ? {} : (!empty(a:1) && type(a:1) == type({}) ? a:1 : {})
+  if !a:immidiate
+    call s:cmd_bundle(a:bundle, param)
+  else
+    call s:cmd_force_bundle(a:bundle, param)
+  endif
+endfunction
+
+function! paq#glob(immidiate, dir) abort
+  if !a:immidiate
+    call s:cmd_globlocal(a:dir)
+  else
+    call s:cmd_force_globlocal(a:dir)
+  endif
+endfunction
+
+function! paq#apply(...) abort
+  call s:cmd_apply(a:0 ? a:1 : {})
+endfunction
+
+function! paq#available(bundle) abort
+  if !&loadplugins | return 0 | endif
+  if has_key(s:repos, a:bundle)
+    return get(s:repos[a:bundle], 'enabled', 1) && isdirectory(s:get_path(a:bundle))
+  endif
+
+  let msg = printf('no repository found on paq#available("%s")', a:bundle)
+  call s:log(s:WARNING, msg)
+  return 0
+endfunction
+
+function! paq#repos(...) abort
+  return deepcopy(a:0 > 0 ? s:repos[a:1] : s:repos)
+endfunction
+
+function! paq#helptags() abort
+  let dirs = filter(map(keys(s:repos), 'expand(s:get_path(v:val) . "/doc")'), 'isdirectory(v:val)')
+  echohl Title | echo 'helptags:' | echohl NONE
+  for dir in filter(dirs, 'filewritable(v:val) == 2')
+    echon ' ' . fnamemodify(dir, ':h:t')
+    execute 'helptags' dir
+  endfor
+  if filewritable(expand('$VIMRUNTIME/doc')) == 2 && filewritable(expand('$VIMRUNTIME/doc/tags')) == 1
+    echon ' $VIMRUNTIME/doc'
+    helptags $VIMRUNTIME/doc
+  endif
+endfunction
+
+function! paq#help(term) abort
+  let cmd = printf("help %s", a:term)
+  try
+    execute cmd
+  catch /^Vim\%((\a\+)\)\=:E\%(149\|426\|257\)/
+    call s:try_with_repo_rtps(cmd, v:exception)
+  endtry
+endfunction
+
+function! paq#enable(bundle) abort
+  if has_key(s:repos, a:bundle) && !get(s:repos[a:bundle], '__loaded', 0) && !get(s:repos[a:bundle], 'enabled', 0)
+    call s:inject_runtimepath([s:get_path(a:bundle)])
+    let s:repos[a:bundle].enabled = 1
+    let s:repos[a:bundle].__loaded = 1
+    if exists('#User#' . a:bundle)
+      execute 'doautocmd User' a:bundle
+    endif
+  endif
+endfunction
+
+function! paq#message() abort
+  call s:message(s:INFO, 's:echo')
+endfunction
+
+function! paq#enumerate() abort
+  new
+  setlocal buftype=nofile
+  let repos = filter(deepcopy(s:repos), '!isdirectory(v:key)')
+  let repo_names = map(items(repos), 'has_key(v:val[1], "host") ? "https://" . s:repo_url(v:val[0], v:val[1].host) : v:val[0]')
+  call append(0, sort(repo_names))
+  normal! Gdd
+  execute '%print'
+  bdelete
+endfunction
+
+function! paq#help_complete(arglead, cmdline, cursorpos) abort
+  return s:help_complete(a:arglead)
+endfunction
+
+function! paq#list_complete(arglead, cmdline, cursorpos) abort
+  return s:list_complete(a:arglead)
+endfunction
+
+" Initialization {{{1
 
 let s:ghq_root = exists('$GHQ_ROOT') && isdirectory(expand($GHQ_ROOT))
       \ ? expand($GHQ_ROOT) : s:find_ghq_root()
 let s:levels = ['ERROR', 'WARNING', 'INFO']
 let [s:ERROR, s:WARNING, s:INFO] = range(len(s:levels))
-function! s:lvl2str(level) "{{{
-  return s:levels[a:level]
-endfunction "}}}
 
 let s:repos = get(s:, 'repos', {})
 let s:log = get(s:, 'log', [])
+
+let s:map_prefixes = {
+      \   'i': {'map': '<C-o>', 'key': ''}
+      \ , 'n': {'map': '', 'key': ''}
+      \ , 'v': {'map': '', 'key': 'gv'}
+      \ , 'x': {'map': '', 'key': 'gv'}
+      \ , 'o': {'map': '', 'key': ''}
+      \ }
+
+
+call s:backup_original_rtp()
+
+
+
 " 1}}}
-
-
-let &cpo = s:save_cpo
-unlet s:save_cpo
-
-" vim:set et:
